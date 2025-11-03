@@ -4,7 +4,7 @@
 
 ## Δομή Project
 
-### Κύριο Script
+### Κύρια Scripts
 
 1. **ddos_detection_analysis.py** - Ολοκληρωμένη ανάλυση DDoS Detection
    - Φόρτωση και προεπεξεργασία δεδομένων
@@ -14,10 +14,30 @@
    - Αξιολόγηση και οπτικοποίηση αποτελεσμάτων
    - Ανάλυση σημαντικότητας χαρακτηριστικών
 
+### Γραφικά Περιβάλλοντα (GUI)
+
+2. **ddos_detection_gui.py** - Γραφικό Περιβάλλον DDoS Detection
+   - Πλήρες GUI για εκπαίδευση και αξιολόγηση μοντέλου
+   - Οπτικοποίηση αποτελεσμάτων σε πραγματικό χρόνο
+   - Εύκολη διαχείριση όλων των φάσεων της ανάλυσης
+   - Καταγραφή λεπτομερών logs
+
+3. **ddos_detection_gui_wizard.py** - Wizard-Style GUI
+   - Βήμα προς βήμα καθοδήγηση
+   - Φιλική εμπειρία χρήστη
+   - Επιλογή μοντέλου και παραμέτρων
+   - Ολοκληρωμένη παρουσίαση αποτελεσμάτων
+
 ### Utility Scripts
 
-2. **check_files.py** - Έλεγχος ύπαρξης αρχείων και μοντέλων
-3. **00_project_summary.py** - Περίληψη όλων των διαθέσιμων scripts
+4. **test_data_loading.py** - Δοκιμαστικό script για φόρτωση δεδομένων
+   - Έλεγχος φόρτωσης και επεξεργασίας δεδομένων
+   - Επικύρωση ακεραιότητας δεδομένων
+   - Διαχείριση missing values
+
+5. **check_files.py** - Έλεγχος ύπαρξης αρχείων και μοντέλων
+
+6. **00_project_summary.py** - Περίληψη όλων των διαθέσιμων scripts
 
 ## Εγκατάσταση
 
@@ -36,12 +56,14 @@ python -m venv .venv
 ### 3. Εγκατάσταση Dependencies
 
 ```powershell
-pip install pandas numpy scikit-learn matplotlib seaborn joblib scapy pyshark imbalanced-learn scipy
+pip install pandas numpy scikit-learn matplotlib seaborn joblib scapy pyshark imbalanced-learn scipy tk
 ```
+
+**Σημείωση:** Για τα GUI applications (ddos_detection_gui.py, ddos_detection_gui_wizard.py), χρειάζεται και το tkinter που συνήθως είναι προεγκατεστημένο με την Python.
 
 ## Χρήση
 
-### Πλήρης Ανάλυση
+### Πλήρης Ανάλυση (Command Line)
 
 Εκτελέστε το κύριο script που κάνει όλη την ανάλυση:
 
@@ -61,6 +83,53 @@ python ddos_detection_analysis.py
 - Αποθηκεύει το μοντέλο στον φάκελο `trained_model/`
 - Αποθηκεύει όλα τα αποτελέσματα και γραφήματα στο `results/`
 
+### Γραφικό Περιβάλλον (GUI Applications)
+
+#### Standard GUI
+
+Εκτελέστε το πλήρες γραφικό περιβάλλον:
+
+```powershell
+# Ενεργοποίηση Virtual Environment
+.\.venv\Scripts\Activate.ps1
+
+# Εκκίνηση GUI
+python ddos_detection_gui.py
+```
+
+Το GUI προσφέρει:
+- Φόρτωση δεδομένων με ένα κλικ
+- Οπτικοποίηση σε πραγματικό χρόνο
+- Εκπαίδευση μοντέλου με progress tracking
+- Λεπτομερή αποτελέσματα και μετρικές
+- Εξαγωγή αποτελεσμάτων
+
+#### Wizard GUI (Προτεινόμενο για νέους χρήστες)
+
+Εκτελέστε το wizard-style περιβάλλον για βήμα προς βήμα καθοδήγηση:
+
+```powershell
+# Ενεργοποίηση Virtual Environment
+.\.venv\Scripts\Activate.ps1
+
+# Εκκίνηση Wizard
+python ddos_detection_gui_wizard.py
+```
+
+Το Wizard GUI σας καθοδηγεί μέσω:
+1. Επιλογή μοντέλου και παραμέτρων
+2. Ρύθμιση επιλογών ανάλυσης
+3. Επεξεργασία δεδομένων
+4. Παρουσίαση αποτελεσμάτων
+
+### Δοκιμή Φόρτωσης Δεδομένων
+
+Για να ελέγξετε ότι τα δεδομένα φορτώνονται σωστά:
+
+```powershell
+python test_data_loading.py
+```
+
 ### Έλεγχος Αρχείων
 
 ```powershell
@@ -72,7 +141,10 @@ python check_files.py
 ```
 .
 ├── .venv/                          # Virtual environment
-├── ddos_detection_analysis.py      # Κύριο script
+├── ddos_detection_analysis.py      # Κύριο script (command line)
+├── ddos_detection_gui.py           # Γραφικό περιβάλλον (GUI)
+├── ddos_detection_gui_wizard.py    # Wizard GUI (βήμα προς βήμα)
+├── test_data_loading.py            # Test script για δεδομένα
 ├── check_files.py                  # Utility script
 ├── 00_project_summary.py           # Project summary
 ├── DrDoS_DNS.csv                   # Dataset
