@@ -1,7 +1,7 @@
 # DrDoS DNS Attack Detection - Project Documentation
 
 ## Επισκόπηση
-Σύστημα ανίχνευσης επιθέσεων DrDoS (Distributed Reflection Denial of Service) με χρήση Machine Learning (Random Forest). Το σύστημα χρησιμοποιεί SMOTE για την αντιμετώπιση ανισορροπημένων δεδομένων και εξασφαλίζει εξισορροπημένο test set για αξιόπιση αξιολόγηση.
+Σύστημα ανίχνευσης επιθέσεων DrDoS (Distributed Reflection Denial of Service) με χρήση Machine Learning (Random Forest). Το σύστημα εφαρμόζει **SMOTE ΠΡΙΝ το splitting** για σωστή αντιμετώπιση ανισορροπημένων δεδομένων και εξασφαλίζει ότι το test set περιέχει **ΜΟΝΟ πραγματικά δεδομένα** (όχι SMOTE).
 
 ---
 
@@ -15,12 +15,13 @@
 **Εκτελεί με τη σειρά:**
 1. Φόρτωση δεδομένων
 2. Καθαρισμό και προεπεξεργασία
-3. Χωρισμό σε train/test sets
-4. Εφαρμογή SMOTE για εξισορρόπηση
-5. Κανονικοποίηση features
-6. Εκπαίδευση Random Forest
-7. Αξιολόγηση μοντέλου
-8. Αποθήκευση μοντέλου
+3. Διαχωρισμό σε BENIGN και DDoS classes
+4. **Εφαρμογή SMOTE στα BENIGN (ΠΡΙΝ το splitting)**
+5. Χωρισμό σε train/test sets (test = ΟΛΑ τα original BENIGN + ίσα DDoS)
+6. Κανονικοποίηση features
+7. Εκπαίδευση Random Forest
+8. Αξιολόγηση μοντέλου
+9. Αποθήκευση μοντέλου
 
 **Εκτέλεση:**
 ```bash
@@ -50,41 +51,49 @@ python train.py
 
 ---
 
-### 2️⃣ **`data_splitting.py`**
-Χωρισμός δεδομένων σε training και test sets με ειδική στρατηγική.
+### 2️⃣ **`data_balancing.py`**
+Εφαρμογή SMOTE στα BENIGN δεδομένα **ΠΡΙΝ το splitting**.
 
 **Συναρτήσεις:**
-- `split_balanced_data(X, y, y_encoded, le_label, random_state)` - Χωρίζει τα δεδομένα:
-  
+- `apply_smote_to_benign(X_benign, y_benign, target_samples, random_state)` - Εφαρμόζει SMOTE:
+
 **Στρατηγική:**
-- Test set: **Απόλυτα εξισορροπημένο** (50% BENIGN, 50% DrDoS_DNS)
-- Χρησιμοποιεί 50% των BENIGN για test
-- Τυχαία επιλογή **χωρίς διπλότυπα** (replace=False)
-- Test set δεν περιλαμβάνει **κανένα SMOTE δεδομένο**
+- **SMOTE εφαρμόζεται ΠΡΩΤΑ** στην minority class (BENIGN)
+- Αυξάνει τα BENIGN samples από ~3.4K → ~33.5K (10x)
+- Δημιουργεί συνθετικά δείγματα για εξισορρόπηση
+- Ρυθμιζόμενο target (SMOTE_TARGET_RATIO στο train.py)
 
 **Έξοδος:**
-- X_train_original, y_train_original (pre-SMOTE)
-- X_test, y_test (balanced 50-50)
-- Χωριστά train sets για κάθε κλάση
+- SMOTE-augmented BENIGN features και labels
+- Τα original BENIGN διατηρούνται ξεχωριστά για το test set
 
 ---
 
-### 3️⃣ **`data_balancing.py`**
-Εξισορρόπηση training set με undersampling και SMOTE.
+### 3️⃣ **`data_splitting.py`**
+Χωρισμός δεδομένων σε training και test sets **ΜΕΤΑ το SMOTE**.
 
 **Συναρτήσεις:**
-- `balance_with_smote(X_train_benign, y_train_benign, X_train_attack, y_train_attack, le_label, random_state)` - Εξισορροπεί τα δεδομένα:
+- `split_data_after_smote(X_benign_original, y_benign_original, X_benign_smote, y_benign_smote, X_attack, y_attack, le_label, test_size, random_state)` - Χωρίζει τα δεδομένα:
 
-**Στρατηγική:**
-1. **Undersampling:** Μειώνει την πλειοψηφούσα κλάση (DrDoS_DNS) στο 10x των BENIGN
-   - Από ~4.9M → ~17K samples
-   - Για διαχείριση μνήμης
-2. **SMOTE:** Αυξάνει την μειοψηφούσα κλάση (BENIGN) για να ταιριάξει με DrDoS_DNS
-   - Από ~1.7K → ~17K samples
-   - Δημιουργεί συνθετικά δείγματα
+**Στρατηγική (ΔΙΟΡΘΩΜΕΝΗ):**
+1. **Test Set:**
+   - **ΟΛΑ** τα original BENIGN samples (3,354)
+   - Ίσος αριθμός DDoS samples (3,354) - τυχαία επιλογή
+   - Σύνολο: 6,708 samples (50-50 balanced)
+   - **ΚΑΝΕΝΑ SMOTE δεδομένο**
+
+2. **Train Set:**
+   - SMOTE BENIGN samples (subsample για να ταιριάξει το test_size ratio)
+   - Ίσος αριθμός DDoS samples - τυχαία επιλογή από τα υπόλοιπα
+   - Εξισορροπημένο 50-50
+
+3. **Test Size Ratio:**
+   - Ρυθμιζόμενο (default 20%)
+   - Υπολογίζεται αυτόματα: test / (train + test)
 
 **Έξοδος:**
-- Balanced training set (50-50, ~33K samples)
+- X_train, y_train (balanced, περιέχει SMOTE)
+- X_test, y_test (balanced, ΜΟΝΟ original data)
 
 ---
 
@@ -120,6 +129,8 @@ python train.py
 - Accuracy, Precision, Recall, F1-Score
 - Feature Importance (Top 20)
 
+**Σημείωση:** Το test set περιέχει **ΜΟΝΟ πραγματικά δεδομένα**, όχι SMOTE!
+
 **Έξοδος:**
 - Dictionary με όλες τις μετρικές
 - Εμφάνιση αποτελεσμάτων στην κονσόλα
@@ -143,35 +154,48 @@ python train.py
 
 ---
 
-## Ροή Δεδομένων
+## Ροή Δεδομένων (ΔΙΟΡΘΩΜΕΝΗ)
 
 ```
-DrDoS_DNS.csv (5M+ samples)
+DrDoS_DNS.csv (5M+ samples, 99.93% DDoS, 0.07% BENIGN)
     ↓
 [1] data_preprocessing.py
     ├─ Καθαρισμός (null, inf)
     ├─ Encoding (categorical → numeric)
     └─ Διαχωρισμός X, y
     ↓
-[2] data_splitting.py
-    ├─ Balanced Test Set: 3,354 samples (50-50)
-    └─ Train Set: 4.9M samples (ανισορροπημένο)
+[2] Διαχωρισμός Classes
+    ├─ BENIGN: 3,354 samples (original)
+    └─ DDoS: 4,908,665 samples
     ↓
-[3] data_balancing.py
-    ├─ Undersampling: 4.9M → 17K (DrDoS_DNS)
-    ├─ SMOTE: 1.7K → 17K (BENIGN)
-    └─ Balanced Train: 33K samples (50-50)
+[3] data_balancing.py - SMOTE ΠΡΙΝ ΤΟ SPLITTING
+    ├─ Input: BENIGN (3,354)
+    ├─ SMOTE: 3,354 → 33,540 (10x)
+    └─ Output: SMOTE BENIGN (33,540)
     ↓
-[4] model_training.py
+[4] data_splitting.py - Splitting ΜΕΤΑ ΤΟ SMOTE
+    ├─ Test Set (6,708):
+    │   ├─ ALL original BENIGN: 3,354
+    │   └─ DDoS (random): 3,354
+    │   └─ Ratio: 50-50, ΚΑΝΕΝΑ SMOTE!
+    │
+    └─ Train Set (26,832):
+        ├─ SMOTE BENIGN (subsample): 13,416
+        └─ DDoS (random): 13,416
+        └─ Ratio: 50-50, balanced
+    ↓
+    └─ Test ratio: 20% (configurable)
+    ↓
+[5] model_training.py
     ├─ StandardScaler (normalization)
     └─ Random Forest Training
     ↓
-[5] model_evaluation.py
-    ├─ Predictions
+[6] model_evaluation.py
+    ├─ Predictions on PURE original data
     ├─ Metrics Calculation
-    └─ Results: 99.97% Accuracy
+    └─ Results: 99.94% Accuracy
     ↓
-[6] model_persistence.py
+[7] model_persistence.py
     └─ Save → drdos_detector_model.pkl
 ```
 
@@ -180,30 +204,47 @@ DrDoS_DNS.csv (5M+ samples)
 ## Αποτελέσματα
 
 ### 📊 Performance Metrics
-- **Accuracy:** 99.97%
-- **Precision:** 99.97%
-- **Recall:** 99.97%
-- **F1-Score:** 99.97%
-- **Errors:** 1/3,354 predictions
+- **Accuracy:** 99.94%
+- **Precision:** 99.94%
+- **Recall:** 99.94%
+- **F1-Score:** 99.94%
+- **Errors:** 4/6,708 predictions
+- **Test Set:** 6,708 samples (100% original data, 0% SMOTE)
 
 ### 🎯 Top Features
-1. Source IP (13.2%)
-2. Fwd Packet Length Min (8.6%)
-3. Average Packet Size (7.3%)
-4. Avg Fwd Segment Size (7.1%)
-5. Fwd Packet Length Mean (7.1%)
+1. Source IP (13.3%)
+2. Min Packet Length (8.2%)
+3. Avg Fwd Segment Size (7.2%)
+4. Average Packet Size (7.2%)
+5. Fwd Packet Length Min (7.2%)
 
 ---
 
 ## Χαρακτηριστικά Υλοποίησης
 
-✅ **Χρήση SMOTE** για την υπολυπόμενη κλάση (BENIGN)  
-✅ **Test set εξισορροπημένο** 50-50 για αξιόπιστη αξιολόγηση  
-✅ **Κανένα SMOTE δεδομένο** στο test set  
-✅ **Τυχαία επιλογή χωρίς διπλότυπα** (random_state + replace=False)  
-✅ **Χρήση ΟΛΩΝ των στηλών** (84 features)  
-✅ **Undersampling** για διαχείριση μνήμης  
-✅ **Modular design** για εύκολη συντήρηση  
+### ✅ Σωστή Διαχείριση SMOTE
+- **SMOTE εφαρμόζεται ΠΡΙΝ το splitting** (όχι μετά!)
+- Test set περιέχει **ΜΟΝΟ original BENIGN** data
+- Train set περιέχει **SMOTE-augmented** data
+- Αποφυγή data leakage
+
+### ✅ Test Set Strategy
+- **ΟΛΑ τα original BENIGN** για realistic evaluation
+- **Εξισορροπημένο 50-50** με ίσα DDoS samples
+- **Κανένα συνθετικό δεδομένο** (SMOTE-free)
+- **Τυχαία επιλογή DDoS** χωρίς διπλότυπα
+
+### ✅ Ρυθμιζόμενες Παράμετροι
+- `TEST_SIZE` - Test set ratio (default 0.20 = 20%)
+- `SMOTE_TARGET_RATIO` - SMOTE multiplier (default 10x)
+- Εύκολη προσαρμογή στο `train.py`
+
+### ✅ Τεχνικά Χαρακτηριστικά
+- **Χρήση ΟΛΩΝ των στηλών** (84 features)
+- **Random Forest** με 100 trees
+- **StandardScaler** normalization
+- **Modular design** για συντήρηση
+- **Reproducible** (random_state=42)
 
 ---
 
@@ -212,6 +253,13 @@ DrDoS_DNS.csv (5M+ samples)
 ### Εκπαίδευση
 ```bash
 python train.py
+```
+
+### Ρύθμιση Παραμέτρων
+Επεξεργασία του `train.py`:
+```python
+TEST_SIZE = 0.20              # Test set ratio (20%)
+SMOTE_TARGET_RATIO = 10       # SMOTE multiplier (10x original BENIGN)
 ```
 
 ### Χρήση Αποθηκευμένου Μοντέλου
@@ -248,3 +296,38 @@ imbalanced-learn
 - **Features:** 88 (χρησιμοποιούνται 84)
 - **Classes:** BENIGN (0.07%), DrDoS_DNS (99.93%)
 - **Ανισορροπία:** ~1:1,464 ratio
+
+---
+
+## Βασικές Διαφορές από Λάθος Υλοποιήσεις
+
+### ❌ ΛΑΘΟΣ Approach:
+1. Split data → Train/Test
+2. Apply SMOTE → Training set
+3. **Πρόβλημα:** SMOTE δεδομένα leak στο test set ή test με ανισορροπημένα δεδομένα
+
+### ✅ ΣΩΣΤΟ Approach (αυτό το project):
+1. **Apply SMOTE FIRST** → BENIGN augmentation
+2. **Split AFTER** → Test = ALL original BENIGN + equal DDoS, Train = SMOTE + DDoS
+3. **Αποτέλεσμα:** Test set καθαρό, αξιόπιστη αξιολόγηση
+
+---
+
+## Τεχνικές Λεπτομέρειες
+
+### SMOTE Implementation
+- Χρήση `imblearn.over_sampling.SMOTE`
+- k_neighbors = min(5, len(BENIGN) - 1)
+- Δημιουργία συνθετικών samples με interpolation
+
+### Data Splitting Logic
+- Test ratio calculation: `train = test * (1 - test_size) / test_size`
+- Subsampling SMOTE αν χρειαστεί για να ταιριάξει το ratio
+- Balanced train set για καλύτερη εκπαίδευση
+
+### Random Forest Parameters
+- n_estimators: 100
+- max_depth: 30
+- min_samples_split: 5
+- min_samples_leaf: 2
+- n_jobs: -1 (παράλληλη επεξεργασία)

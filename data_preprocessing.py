@@ -51,15 +51,15 @@ def clean_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, str]:
     
     print(f"   Label column: '{label_col}'")
     
-    # Handle null values
-    print(f"   Null values before: {df.isnull().sum().sum()}")
-    df = df.dropna()
-    print(f"   Null values after: {df.isnull().sum().sum()}")
-    
     # Handle infinity values
     print("   Replacing infinity values...")
     df = df.replace([np.inf, -np.inf], np.nan)
     df = df.dropna()
+
+    # Handle null values
+    print(f"   Null values before: {df.isnull().sum().sum()}")
+    df = df.dropna()
+    print(f"   Null values after: {df.isnull().sum().sum()}")
     
     # Separate features and labels
     X = df.drop(columns=[label_col])
