@@ -292,10 +292,13 @@ imbalanced-learn
 ## Dataset
 
 - **Αρχείο:** `DrDoS_DNS.csv`
+- **Λήψη:** Διαθέσιμο στα [GitHub Releases](https://github.com/kulisk/DrDoS-Detector/releases)
 - **Samples:** 5,074,413
 - **Features:** 88 (χρησιμοποιούνται 84)
 - **Classes:** BENIGN (0.07%), DrDoS_DNS (99.93%)
 - **Ανισορροπία:** ~1:1,464 ratio
+
+**Σημείωση:** Λόγω μεγέθους, το dataset δεν περιλαμβάνεται στο repository. Κατεβάστε το από τα releases και τοποθετήστε το στον φάκελο του project.
 
 ---
 
