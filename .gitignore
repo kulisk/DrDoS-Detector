@@ -1,0 +1,9 @@
+*.pyc
+*.pcap
+*.png
+*.joblib
+
+# CSV files (except the main dataset)
+*.csv
+!DrDoS_DNS.csv
+drdos_detector_model.pkl
