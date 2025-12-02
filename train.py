@@ -7,24 +7,40 @@ CORRECTED STRATEGY:
 2. Separate BENIGN and DDoS classes
 3. Apply SMOTE to BENIGN (minority class) FIRST
 4. Split: Test = ALL original BENIGN + equal DDoS, Train = SMOTE BENIGN + remaining DDoS
-5. Train model
+5. Train model(s)
+6. Compare models (if multiple enabled)
 """
 
 import warnings
 import numpy as np
+import time
 
 from data_preprocessing import load_dataset, clean_data, encode_labels
 from data_balancing import apply_smote_to_benign
 from data_splitting import split_data_after_smote
-from model_training import scale_features, train_random_forest
-from model_evaluation import evaluate_model
+from model_training import (scale_features, train_logistic_regression, 
+                            train_random_forest, train_svm, 
+                            train_decision_tree, train_knn)
+from model_evaluation import evaluate_model, save_results_to_file
+from model_comparison import compare_models, save_comparison_to_file
 from model_persistence import save_model
 
 warnings.filterwarnings('ignore')
 
+# ============================================================================
+# MODEL SELECTION - Enable/Disable models here
+# ============================================================================
+ENABLE_MODELS = {
+    'Logistic Regression': True,   # Recommended by the paper
+    'Random Forest': True,          # Best overall performance
+    'SVM': False,                   # Slow but accurate (disable for large datasets)
+    'Decision Tree': True,          # Fast and interpretable
+    'KNN': False                    # Very slow for large datasets
+}
+
 # Configuration
 RANDOM_STATE = 42
-CSV_PATH = r'c:\Users\Kulis\Documents\Πτυχιακή\DrDoS-Detector\DrDoS_DNS.csv'
+CSV_PATH = 'DrDoS_DNS.csv'
 MODEL_PATH = 'drdos_detector_model.pkl'
 TEST_SIZE = 0.20  # Test set ratio (configurable)
 
@@ -32,12 +48,33 @@ TEST_SIZE = 0.20  # Test set ratio (configurable)
 SMOTE_TARGET_RATIO = 10  # SMOTE BENIGN to be X times the original BENIGN count
 
 # Model parameters
-RF_PARAMS = {
-    'n_estimators': 100,
-    'max_depth': 30,
-    'min_samples_split': 5,
-    'min_samples_leaf': 2,
-    'random_state': RANDOM_STATE
+MODEL_PARAMS = {
+    'Logistic Regression': {
+        'max_iter': 1000,
+        'random_state': RANDOM_STATE
+    },
+    'Random Forest': {
+        'n_estimators': 100,
+        'max_depth': 30,
+        'min_samples_split': 5,
+        'min_samples_leaf': 2,
+        'random_state': RANDOM_STATE
+    },
+    'SVM': {
+        'kernel': 'rbf',
+        'C': 1.0,
+        'random_state': RANDOM_STATE
+    },
+    'Decision Tree': {
+        'max_depth': 30,
+        'min_samples_split': 5,
+        'min_samples_leaf': 2,
+        'random_state': RANDOM_STATE
+    },
+    'KNN': {
+        'n_neighbors': 5,
+        'weights': 'uniform'
+    }
 }
 
 
@@ -47,10 +84,20 @@ def main():
     # Set random seed
     np.random.seed(RANDOM_STATE)
     
+    # Count enabled models
+    enabled_models = [name for name, enabled in ENABLE_MODELS.items() if enabled]
+    num_models = len(enabled_models)
+    
+    if num_models == 0:
+        print("ERROR: No models enabled! Please enable at least one model in ENABLE_MODELS.")
+        return
+    
     print("="*80)
-    print("DrDoS DNS Attack Detection - Training Pipeline (CORRECTED)")
+    print("DrDoS DNS Attack Detection - Training Pipeline")
     print("="*80)
     print(f"Configuration: TEST_SIZE={TEST_SIZE}, SMOTE_RATIO={SMOTE_TARGET_RATIO}x")
+    print(f"Enabled Models: {', '.join(enabled_models)}")
+    print("="*80)
     
     # Step 1: Load dataset
     df = load_dataset(CSV_PATH)
@@ -96,19 +143,134 @@ def main():
         RANDOM_STATE
     )
     
+    # Collect train/test info for results file
+    train_test_info = {
+        'Total Dataset Samples': len(df),
+        'Original BENIGN Samples': len(X_benign_original),
+        'Original DDoS Samples': len(X_attack),
+        'SMOTE BENIGN Generated': len(X_benign_smote),
+        'Train Set Size': len(X_train),
+        'Test Set Size': len(X_test),
+        'Test Ratio': f"{TEST_SIZE * 100:.1f}%",
+        'BENIGN in Test': sum(y_test == 0),
+        'DDoS in Test': sum(y_test == 1),
+        'BENIGN in Train': sum(y_train == 0),
+        'DDoS in Train': sum(y_train == 1),
+        'Total Features': len(X.columns)
+    }
+    
     # Step 6: Scale features
     X_train_scaled, X_test_scaled, scaler = scale_features(X_train, X_test)
     
-    # Step 7: Train model
-    clf = train_random_forest(X_train_scaled, y_train, **RF_PARAMS)
+    # Step 7: Train and evaluate models
+    results_dict = {}
+    models_dict = {}
     
-    # Step 8: Evaluate model
-    metrics = evaluate_model(clf, X_test_scaled, y_test, le_label, X.columns.tolist())
+    for model_name, enabled in ENABLE_MODELS.items():
+        if not enabled:
+            continue
+            
+        print("\n" + "="*80)
+        print(f"Training: {model_name}")
+        print("="*80)
+        
+        # Start timing
+        start_time = time.time()
+        
+        # Train model
+        if model_name == 'Logistic Regression':
+            clf = train_logistic_regression(X_train_scaled, y_train, **MODEL_PARAMS[model_name])
+        elif model_name == 'Random Forest':
+            clf = train_random_forest(X_train_scaled, y_train, **MODEL_PARAMS[model_name])
+        elif model_name == 'SVM':
+            clf = train_svm(X_train_scaled, y_train, **MODEL_PARAMS[model_name])
+        elif model_name == 'Decision Tree':
+            clf = train_decision_tree(X_train_scaled, y_train, **MODEL_PARAMS[model_name])
+        elif model_name == 'KNN':
+            clf = train_knn(X_train_scaled, y_train, **MODEL_PARAMS[model_name])
+        
+        # Calculate training time
+        training_time = time.time() - start_time
+        
+        # Start timing for evaluation
+        eval_start_time = time.time()
+        
+        # Evaluate model
+        metrics = evaluate_model(clf, X_test_scaled, y_test, le_label, X.columns.tolist())
+        
+        # Calculate evaluation time
+        evaluation_time = time.time() - eval_start_time
+        total_time = time.time() - start_time
+        
+        # Add timing information to metrics
+        metrics['training_time'] = training_time
+        metrics['evaluation_time'] = evaluation_time
+        metrics['total_time'] = total_time
+        
+        # Display timing information
+        print(f"\n⏱️  Timing Information:")
+        print(f"   Training Time: {training_time:.2f} seconds")
+        print(f"   Evaluation Time: {evaluation_time:.2f} seconds")
+        print(f"   Total Time: {total_time:.2f} seconds")
+        
+        results_dict[model_name] = metrics
+        models_dict[model_name] = clf
     
-    # Save model
-    save_model(clf, scaler, le_label, X.columns.tolist(), MODEL_PATH)
+    # Step 8: Compare models (if multiple enabled)
+    if num_models > 1:
+        print("\n" + "="*80)
+        print("COMPARING ALL MODELS")
+        print("="*80)
+        comparison_df = compare_models(results_dict, le_label)
+        
+        # Save comparison to file
+        config = {
+            'CSV_PATH': CSV_PATH,
+            'TEST_SIZE': TEST_SIZE,
+            'SMOTE_TARGET_RATIO': SMOTE_TARGET_RATIO,
+            'RANDOM_STATE': RANDOM_STATE,
+            'Enabled Models': ', '.join(enabled_models)
+        }
+        
+        comparison_file = save_comparison_to_file(
+            comparison_df, results_dict, config, train_test_info, le_label
+        )
+        print(f"\nComparison results saved to: {comparison_file}")
+        
+        # Save best model
+        best_model_name = comparison_df.iloc[0]['Model']
+        best_model = models_dict[best_model_name]
+        model_path = f"best_model_{best_model_name.replace(' ', '_').lower()}.pkl"
+        save_model(best_model, scaler, le_label, X.columns.tolist(), model_path)
+        print(f"Best model ({best_model_name}) saved as: {model_path}")
+        
+    else:
+        # Single model - save individual results
+        model_name = enabled_models[0]
+        clf = models_dict[model_name]
+        metrics = results_dict[model_name]
+        
+        # Save model
+        save_model(clf, scaler, le_label, X.columns.tolist(), MODEL_PATH)
+        
+        # Save results to file
+        config = {
+            'CSV_PATH': CSV_PATH,
+            'MODEL_PATH': MODEL_PATH,
+            'TEST_SIZE': TEST_SIZE,
+            'SMOTE_TARGET_RATIO': SMOTE_TARGET_RATIO,
+            'RANDOM_STATE': RANDOM_STATE
+        }
+        config.update(MODEL_PARAMS[model_name])
+        
+        results_file = save_results_to_file(metrics, config, train_test_info, le_label)
+        print(f"\nResults saved to: {results_file}")
     
-    return clf, scaler, le_label, metrics
+    print("\n" + "="*80)
+    print("Pipeline completed successfully!")
+    print("="*80)
+    
+    return models_dict, scaler, le_label, results_dict
 
 
 if __name__ == "__main__":

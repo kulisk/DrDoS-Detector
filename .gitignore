@@ -2,8 +2,8 @@
 *.pcap
 *.png
 *.joblib
-
-
+best_model_decision_tree.pkl
+*.txt
 *.csv
 #(the main dataset)
 DrDoS_DNS.csv 

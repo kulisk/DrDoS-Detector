@@ -168,12 +168,12 @@ DrDoS_DNS.csv (5M+ samples, 99.93% DDoS, 0.07% BENIGN)
     ├─ BENIGN: 3,354 samples (original)
     └─ DDoS: 4,908,665 samples
     ↓
-[3] data_balancing.py - SMOTE ΠΡΙΝ ΤΟ SPLITTING
+[3] data_balancing.py - SMOTE 
     ├─ Input: BENIGN (3,354)
     ├─ SMOTE: 3,354 → 33,540 (10x)
     └─ Output: SMOTE BENIGN (33,540)
     ↓
-[4] data_splitting.py - Splitting ΜΕΤΑ ΤΟ SMOTE
+[4] data_splitting.py - Splitting 
     ├─ Test Set (6,708):
     │   ├─ ALL original BENIGN: 3,354
     │   └─ DDoS (random): 3,354
@@ -223,7 +223,6 @@ DrDoS_DNS.csv (5M+ samples, 99.93% DDoS, 0.07% BENIGN)
 ## Χαρακτηριστικά Υλοποίησης
 
 ### ✅ Σωστή Διαχείριση SMOTE
-- **SMOTE εφαρμόζεται ΠΡΙΝ το splitting** (όχι μετά!)
 - Test set περιέχει **ΜΟΝΟ original BENIGN** data
 - Train set περιέχει **SMOTE-augmented** data
 - Αποφυγή data leakage
