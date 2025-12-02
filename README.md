@@ -1,7 +1,260 @@
+# DrDoS DNS Attack Detection
+
+## Overview
+DrDoS-Detector is a machine learning pipeline for detecting Distributed Reflection Denial of Service (DrDoS) attacks targeting DNS servers. The project supports multiple classification algorithms, automatic model comparison, robust handling of class imbalance with SMOTE applied before splitting, and clean separation of training vs. evaluation data to avoid leakage.
+
+- Multiple models with enable/disable configuration
+- Automatic per-model timing (training, evaluation, total)
+- Clean test set with only original, non-SMOTE data
+- Auto-saved results and best-model artifacts with incremental filenames
+- Modular codebase designed for reproducibility and maintenance
+
+## Supported Algorithms
+- Logistic Regression (as referenced in the paper)
+- Random Forest
+- Decision Tree (fast and high-performing)
+- Support Vector Machine (SVM)
+- K-Nearest Neighbors (KNN)
+
+## Quick Start
+
+### Requirements
+```txt
+pandas>=1.5.0
+numpy>=1.23.0
+scikit-learn>=1.2.0
+imbalanced-learn>=0.10.0
+```
+
+### Install
+```bash
+pip install pandas numpy scikit-learn imbalanced-learn
+```
+
+### Dataset
+- File: `DrDoS_DNS.csv`
+- Download: available in GitHub Releases
+- Place the CSV in the project root folder
+
+Releases: https://github.com/kulisk/DrDoS-Detector/releases
+
+### Run
+```bash
+python train.py
+```
+
+Default configuration trains and compares multiple models. Results and artifacts are saved automatically.
+
+## Configuration
+Edit `train.py` to select and configure models.
+
+- Enable or disable models:
+```python
+ENABLE_MODELS = {
+  'Logistic Regression': True,
+  'Random Forest': True,
+  'SVM': False,
+  'Decision Tree': True,
+  'KNN': False
+}
+```
+
+- Global settings:
+```python
+TEST_SIZE = 0.20           # Evaluation ratio (20%)
+SMOTE_TARGET_RATIO = 10    # BENIGN upsampling multiplier
+RANDOM_STATE = 42          # Reproducibility
+```
+
+- Per-model parameters (excerpt):
+```python
+MODEL_PARAMS = {
+  'Logistic Regression': {
+    'max_iter': 1000,
+    'random_state': RANDOM_STATE
+  },
+  'Random Forest': {
+    'n_estimators': 100,
+    'max_depth': 30,
+    'min_samples_split': 5,
+    'min_samples_leaf': 2,
+    'random_state': RANDOM_STATE
+  },
+  'SVM': {
+    'kernel': 'rbf',
+    'C': 1.0,
+    'random_state': RANDOM_STATE
+  },
+  'Decision Tree': {
+    'max_depth': 30,
+    'min_samples_split': 5,
+    'min_samples_leaf': 2,
+    'random_state': RANDOM_STATE
+  },
+  'KNN': {
+    'n_neighbors': 5,
+    'weights': 'uniform'
+  }
+}
+```
+
+## Pipeline
+
+### Data Flow (corrected design)
+```
+DrDoS_DNS.csv (5M+ samples, ~0.07% BENIGN, ~99.93% DrDoS)
+  ↓
+[1] data_preprocessing.py
+  ├─ Clean null/inf
+  ├─ Encode categorical → numeric
+  └─ Split X, y
+  ↓
+[2] Class separation
+  ├─ BENIGN (original)
+  └─ DrDoS (original)
+  ↓
+[3] data_balancing.py (SMOTE BEFORE SPLIT)
+  ├─ Input: BENIGN original
+  ├─ SMOTE to target ratio (e.g., 10×)
+  └─ Output: BENIGN SMOTE
+  ↓
+[4] data_splitting.py (AFTER SMOTE)
+  ├─ Test: ALL original BENIGN + equal DrDoS
+  └─ Train: BENIGN SMOTE + remaining DrDoS
+  ↓
+[5] model_training.py
+  ├─ StandardScaler fit on train → transform train/test
+  └─ Train selected models (with timing)
+  ↓
+[6] model_evaluation.py
+  ├─ Evaluate on PURE original test data
+  ├─ Metrics: Accuracy, Precision, Recall, F1
+  └─ Feature importance / coefficients (Top 20)
+  ↓
+[7] model_comparison.py (if multiple models enabled)
+  ├─ Compare metrics & timing
+  ├─ Save comparison report
+  └─ Select best model
+  ↓
+[8] model_persistence.py
+  └─ Save best model and supporting artifacts
+```
+
+## Modules
+
+- `data_preprocessing.py`
+  - `load_dataset(csv_path)`
+  - `clean_data(df)` → cleans + encodes + returns X, y
+  - `encode_labels(y)`
+
+- `data_balancing.py`
+  - `apply_smote_to_benign(X_benign, y_benign, target_samples, random_state)`
+
+- `data_splitting.py`
+  - `split_data_after_smote(...)` → Test: ALL original BENIGN + equal DrDoS; Train: BENIGN SMOTE + remaining DrDoS
+
+- `model_training.py`
+  - `scale_features(X_train, X_test)`
+  - `train_logistic_regression(...)`
+  - `train_random_forest(...)`
+  - `train_svm(...)`
+  - `train_decision_tree(...)`
+  - `train_knn(...)`
+
+- `model_evaluation.py`
+  - `evaluate_model(clf, X_test, y_test, le_label, feature_names)`
+  - Handles tree-based `feature_importances_` and linear `coef_` (abs)
+  - Saves individual results with auto-increment: `training_results_#.txt`
+
+- `model_comparison.py`
+  - `compare_models(results_dict, label_encoder)` → table of metrics + timing
+  - `save_comparison_to_file(...)` → `comparison_results_#.txt`
+  - Best model selection stored as `best_model_[algorithm].pkl`
+
+- `model_persistence.py`
+  - `save_model(model, scaler, label_encoder, feature_names, filepath)`
+  - `load_model(filepath)`
+
+## Results Snapshot
+
+Example comparative performance (with 6,708 original test samples):
+
+| Model               | Accuracy | Precision | Recall | F1-Score | Train Time | Total Time |
+|---------------------|----------|-----------|--------|----------|------------|------------|
+| Decision Tree       | 0.9999   | 0.9999    | 0.9999 | 0.9999   | 0.36 s     | 0.39 s     |
+| Logistic Regression | 0.9996   | 0.9996    | 0.9996 | 0.9996   | 5.20 s     | 5.26 s     |
+| Random Forest       | 0.9994   | 0.9994    | 0.9994 | 0.9994   | 0.62 s     | 0.79 s     |
+
+Notes:
+- Test set uses only original samples (no SMOTE)
+- Auto-comparison report: `comparison_results_#.txt`
+- Best model artifact: `best_model_[algorithm].pkl`
+
+## Using Saved Models
+```python
+from model_persistence import load_model
+import pandas as pd
+
+model_data = load_model('best_model_decision_tree.pkl')
+clf = model_data['model']
+scaler = model_data['scaler']
+label_encoder = model_data['label_encoder']
+feature_names = model_data['feature_names']
+
+# X_new must match training feature schema
+X_new = pd.DataFrame(..., columns=feature_names)
+X_new_scaled = scaler.transform(X_new)
+pred = clf.predict(X_new_scaled)
+labels = label_encoder.inverse_transform(pred)
+print(labels)
+```
+
+## Project Structure
+```
+DrDoS-Detector/
+├── train.py
+├── data_preprocessing.py
+├── data_balancing.py
+├── data_splitting.py
+├── model_training.py
+├── model_evaluation.py
+├── model_comparison.py
+├── model_persistence.py
+├── DrDoS_DNS.csv                 # download from Releases
+├── training_results_*.txt
+├── comparison_results_*.txt
+├── best_model_*.pkl
+└── README.md
+```
+
+## Troubleshooting
+- Memory constraints: reduce `SMOTE_TARGET_RATIO` (e.g., 5) or `TEST_SIZE` (e.g., 0.10)
+- Slow training: disable SVM and KNN for large datasets; keep Decision Tree and Random Forest
+- Dataset not found: ensure `DrDoS_DNS.csv` is in the project root
+
+## Reference
+Paper: “Predicting of DDoS Attack on DNS Server using Machine Learning”
+- Uses Logistic Regression
+- This implementation also compares additional models and achieves >99.9% accuracy with clean evaluation design
+
+## License
+Open-source for educational and research use.
+
+## Contact
+- Issues: https://github.com/kulisk/DrDoS-Detector/issues
+- Releases: https://github.com/kulisk/DrDoS-Detector/releases
+
 # DrDoS DNS Attack Detection - Project Documentation
 
 ## Επισκόπηση
-Σύστημα ανίχνευσης επιθέσεων DrDoS (Distributed Reflection Denial of Service) με χρήση Machine Learning (Random Forest). Το σύστημα εφαρμόζει **SMOTE ΠΡΙΝ το splitting** για σωστή αντιμετώπιση ανισορροπημένων δεδομένων και εξασφαλίζει ότι το test set περιέχει **ΜΟΝΟ πραγματικά δεδομένα** (όχι SMOTE).
+Προηγμένο σύστημα ανίχνευσης επιθέσεων DrDoS (Distributed Reflection Denial of Service) με χρήση Machine Learning. Το σύστημα υποστηρίζει **πολλαπλούς αλγορίθμους** ταξινόμησης με δυνατότητα **αυτόματης σύγκρισης** και εφαρμόζει **SMOTE ΠΡΙΝ το splitting** για σωστή αντιμετώπιση ανισορροπημένων δεδομένων, εξασφαλίζοντας ότι το test set περιέχει **ΜΟΝΟ πραγματικά δεδομένα** (όχι SMOTE).
+
+### 🎯 Υποστηριζόμενοι Αλγόριθμοι
+- **Logistic Regression** (συνιστάται από το άρθρο)
+- **Random Forest**
+- **Decision Tree** 🏆 (καλύτερη απόδοση)
+- **Support Vector Machine (SVM)**
+- **K-Nearest Neighbors (KNN)**
 
 ---
 
@@ -10,7 +263,7 @@
 ### 🚀 Κύριο Script Εκτέλεσης
 
 #### **`train.py`**
-Το κύριο script που ορχηστρώνει ολόκληρη τη διαδικασία εκπαίδευσης.
+Το κύριο script που ορχηστρώνει ολόκληρη τη διαδικασία εκπαίδευσης με υποστήριξη πολλαπλών αλγορίθμων.
 
 **Εκτελεί με τη σειρά:**
 1. Φόρτωση δεδομένων
@@ -19,9 +272,21 @@
 4. **Εφαρμογή SMOTE στα BENIGN (ΠΡΙΝ το splitting)**
 5. Χωρισμό σε train/test sets (test = ΟΛΑ τα original BENIGN + ίσα DDoS)
 6. Κανονικοποίηση features
-7. Εκπαίδευση Random Forest
-8. Αξιολόγηση μοντέλου
-9. Αποθήκευση μοντέλου
+7. Εκπαίδευση επιλεγμένων μοντέλων με μέτρηση χρόνου
+8. Αξιολόγηση κάθε μοντέλου
+9. Σύγκριση μοντέλων (αν >1 enabled)
+10. Αποθήκευση του καλύτερου μοντέλου
+
+**Ρύθμιση Αλγορίθμων:**
+```python
+ENABLE_MODELS = {
+    'Logistic Regression': True,   # Από το άρθρο
+    'Random Forest': True,          # Εξαιρετική απόδοση
+    'SVM': False,                   # Αργός για μεγάλα datasets
+    'Decision Tree': True,          # Ταχύτερος & Ακριβέστερος
+    'KNN': False                    # Πολύ αργός
+}
+```
 
 **Εκτέλεση:**
 ```bash
@@ -98,51 +363,109 @@ python train.py
 ---
 
 ### 4️⃣ **`model_training.py`**
-Κανονικοποίηση features και εκπαίδευση μοντέλου.
+Κανονικοποίηση features και εκπαίδευση μοντέλων με υποστήριξη πολλαπλών αλγορίθμων.
 
 **Συναρτήσεις:**
 - `scale_features(X_train, X_test)` - StandardScaler για κανονικοποίηση
   - Fit στο training set
   - Transform σε train και test
-  
-- `train_random_forest(X_train, y_train, ...)` - Εκπαίδευση Random Forest:
-  - 100 trees
-  - max_depth = 30
+
+**Αλγόριθμοι Εκπαίδευσης:**
+- `train_logistic_regression(...)` - Logistic Regression (από το άρθρο)
+  - max_iter: 1000
   - Παράλληλη επεξεργασία (n_jobs=-1)
-  - Χρησιμοποιεί **ΟΛΕΣ** τις 84 στήλες
+  
+- `train_random_forest(...)` - Random Forest
+  - 100 trees, max_depth=30
+  - Παράλληλη επεξεργασία (n_jobs=-1)
+  
+- `train_svm(...)` - Support Vector Machine
+  - RBF kernel, C=1.0
+  
+- `train_decision_tree(...)` - Decision Tree
+  - max_depth=30
+  
+- `train_knn(...)` - K-Nearest Neighbors
+  - k=5, uniform weights
+
+**Χαρακτηριστικά:**
+- Χρησιμοποιεί **ΟΛΕΣ** τις 84 στήλες
+- Υποστήριξη coefficient-based και tree-based μοντέλων
+- Αυτόματη μέτρηση χρόνου εκπαίδευσης
 
 **Έξοδος:**
 - Scaler (fitted)
-- Trained Random Forest Classifier
+- Trained Classifier (οποιοσδήποτε αλγόριθμος)
 
 ---
 
 ### 5️⃣ **`model_evaluation.py`**
-Αξιολόγηση του εκπαιδευμένου μοντέλου.
+Αξιολόγηση των εκπαιδευμένων μοντέλων με πλήρη μετρικές.
 
 **Συναρτήσεις:**
 - `evaluate_model(clf, X_test, y_test, le_label, feature_names)` - Υπολογίζει:
 
 **Μετρικές:**
 - Confusion Matrix
-- Classification Report
+- Classification Report (per-class metrics)
 - Accuracy, Precision, Recall, F1-Score
-- Feature Importance (Top 20)
+- Feature Importance / Coefficients (Top 20)
+  - Tree-based models: feature_importances_
+  - Linear models: abs(coef_)
+
+**Χρόνοι Εκτέλεσης:**
+- Training Time (δευτερόλεπτα)
+- Evaluation Time (δευτερόλεπτα)
+- Total Time (δευτερόλεπτα)
+
+**Αποθήκευση Αποτελεσμάτων:**
+- `save_results_to_file()` - Αυτόματη αποθήκευση σε `training_results_X.txt`
+- Αυτόματη αρίθμηση αρχείων (δεν γίνεται overwrite)
 
 **Σημείωση:** Το test set περιέχει **ΜΟΝΟ πραγματικά δεδομένα**, όχι SMOTE!
 
 **Έξοδος:**
-- Dictionary με όλες τις μετρικές
+- Dictionary με όλες τις μετρικές + χρόνους
 - Εμφάνιση αποτελεσμάτων στην κονσόλα
+- Αποθήκευση σε txt αρχείο
 
 ---
 
-### 6️⃣ **`model_persistence.py`**
+### 6️⃣ **`model_comparison.py`**
+Σύγκριση πολλαπλών μοντέλων και δημιουργία comparative analysis.
+
+**Συναρτήσεις:**
+- `compare_models(results_dict, label_encoder)` - Δημιουργεί πίνακα σύγκρισης:
+  - Accuracy, Precision, Recall, F1-Score
+  - Training Time, Total Time
+  - Αυτόματη ταξινόμηση (κατά Accuracy)
+  - Προσδιορισμός καλύτερου μοντέλου
+
+- `save_comparison_to_file(...)` - Αποθήκευση λεπτομερούς σύγκρισης:
+  - Συγκριτικός πίνακας
+  - Detailed results για κάθε μοντέλο
+  - Confusion matrices
+  - Top 10 features per model
+  - Αυτόματη αρίθμηση: `comparison_results_X.txt`
+
+**Λειτουργία:**
+- Ενεργοποιείται αυτόματα όταν >1 μοντέλο είναι enabled
+- Αποθηκεύει το **καλύτερο μοντέλο** αυτόματα
+
+**Έξοδος:**
+- Comparison DataFrame
+- `comparison_results_X.txt` με πλήρη ανάλυση
+- `best_model_[algorithm_name].pkl`
+
+---
+
+### 7️⃣ **`model_persistence.py`**
+### 7️⃣ **`model_persistence.py`**
 Αποθήκευση και φόρτωση του μοντέλου.
 
 **Συναρτήσεις:**
 - `save_model(model, scaler, label_encoder, feature_names, filepath)` - Αποθηκεύει:
-  - Trained model
+  - Trained model (οποιοσδήποτε αλγόριθμος)
   - Scaler
   - Label encoder
   - Feature names
@@ -150,7 +473,8 @@ python train.py
 - `load_model(filepath)` - Φορτώνει αποθηκευμένο μοντέλο
 
 **Έξοδος:**
-- `drdos_detector_model.pkl` - Pickle file με όλα τα απαραίτητα objects
+- `drdos_detector_model.pkl` ή `best_model_[algorithm].pkl`
+- Pickle file με όλα τα απαραίτητα objects
 
 ---
 
@@ -168,12 +492,12 @@ DrDoS_DNS.csv (5M+ samples, 99.93% DDoS, 0.07% BENIGN)
     ├─ BENIGN: 3,354 samples (original)
     └─ DDoS: 4,908,665 samples
     ↓
-[3] data_balancing.py - SMOTE 
+[3] data_balancing.py - SMOTE ΠΡΙΝ ΤΟ SPLITTING
     ├─ Input: BENIGN (3,354)
     ├─ SMOTE: 3,354 → 33,540 (10x)
     └─ Output: SMOTE BENIGN (33,540)
     ↓
-[4] data_splitting.py - Splitting 
+[4] data_splitting.py - Splitting ΜΕΤΑ ΤΟ SMOTE
     ├─ Test Set (6,708):
     │   ├─ ALL original BENIGN: 3,354
     │   └─ DDoS (random): 3,354
@@ -188,30 +512,55 @@ DrDoS_DNS.csv (5M+ samples, 99.93% DDoS, 0.07% BENIGN)
     ↓
 [5] model_training.py
     ├─ StandardScaler (normalization)
-    └─ Random Forest Training
+    └─ Train Multiple Models με χρονομέτρηση
     ↓
 [6] model_evaluation.py
     ├─ Predictions on PURE original data
-    ├─ Metrics Calculation
-    └─ Results: 99.94% Accuracy
+    ├─ Metrics Calculation για κάθε μοντέλο
+    └─ Χρόνοι εκτέλεσης
     ↓
-[7] model_persistence.py
-    └─ Save → drdos_detector_model.pkl
+[7] model_comparison.py (αν >1 model enabled)
+    ├─ Συγκριτική ανάλυση
+    ├─ Επιλογή καλύτερου μοντέλου
+    └─ Save comparison_results_X.txt
+    ↓
+[8] model_persistence.py
+    └─ Save → best_model_[algorithm].pkl
 ```
 
 ---
 
 ## Αποτελέσματα
 
-### 📊 Performance Metrics
-- **Accuracy:** 99.94%
-- **Precision:** 99.94%
-- **Recall:** 99.94%
-- **F1-Score:** 99.94%
-- **Errors:** 4/6,708 predictions
-- **Test Set:** 6,708 samples (100% original data, 0% SMOTE)
+### 📊 Performance Metrics (Σύγκριση Αλγορίθμων)
 
-### 🎯 Top Features
+| Μοντέλο | Accuracy | Precision | Recall | F1-Score | Training Time | Total Time |
+|---------|----------|-----------|--------|----------|---------------|------------|
+| **Decision Tree** 🏆 | **99.99%** | **99.99%** | **99.99%** | **99.99%** | **0.36s** ⚡ | **0.39s** ⚡ |
+| **Logistic Regression** | 99.96% | 99.96% | 99.96% | 99.96% | 5.20s | 5.26s |
+| **Random Forest** | 99.94% | 99.94% | 99.94% | 99.94% | 0.62s | 0.79s |
+
+**Σημειώσεις:**
+- **Decision Tree**: Καλύτερη απόδοση ΚΑΙ ταχύτητα (μόνο 1 λάθος στα 6,708 samples!)
+- **Logistic Regression**: Αλγόριθμος που συστήνεται από το άρθρο, εξαιρετική ακρίβεια
+- **Random Forest**: Εξαιρετική ισορροπία απόδοσης/ταχύτητας
+- **Test Set**: 6,708 samples (100% original data, 0% SMOTE)
+
+### 🎯 Top Features (Decision Tree)
+1. Source IP (99.93%)
+2. Min Packet Length (0.06%)
+3. Destination Port (0.01%)
+4. min_seg_size_forward (<0.01%)
+5. Destination IP (<0.01%)
+
+### 🎯 Top Features (Logistic Regression)
+1. Source IP (3.35)
+2. Destination IP (2.63)
+3. URG Flag Count (2.18)
+4. Protocol (1.98)
+5. Bwd Packet Length Min (0.80)
+
+### 🎯 Top Features (Random Forest)
 1. Source IP (13.3%)
 2. Min Packet Length (8.2%)
 3. Avg Fwd Segment Size (7.2%)
@@ -222,7 +571,20 @@ DrDoS_DNS.csv (5M+ samples, 99.93% DDoS, 0.07% BENIGN)
 
 ## Χαρακτηριστικά Υλοποίησης
 
+### ✅ Πολλαπλοί Αλγόριθμοι ML
+- **5 διαφορετικοί αλγόριθμοι** με εύκολη ενεργοποίηση/απενεργοποίηση
+- **Αυτόματη σύγκριση** όταν >1 αλγόριθμος enabled
+- **Επιλογή καλύτερου μοντέλου** με βάση accuracy
+- **Υποστήριξη coefficient & tree-based models**
+
+### ✅ Μέτρηση Χρόνων Εκτέλεσης
+- **Training Time** για κάθε μοντέλο
+- **Evaluation Time** για κάθε μοντέλο
+- **Total Time** (end-to-end)
+- Εμφάνιση σε πίνακα σύγκρισης
+
 ### ✅ Σωστή Διαχείριση SMOTE
+- **SMOTE εφαρμόζεται ΠΡΙΝ το splitting** (όχι μετά!)
 - Test set περιέχει **ΜΟΝΟ original BENIGN** data
 - Train set περιέχει **SMOTE-augmented** data
 - Αποφυγή data leakage
@@ -233,62 +595,204 @@ DrDoS_DNS.csv (5M+ samples, 99.93% DDoS, 0.07% BENIGN)
 - **Κανένα συνθετικό δεδομένο** (SMOTE-free)
 - **Τυχαία επιλογή DDoS** χωρίς διπλότυπα
 
+### ✅ Αυτόματη Αποθήκευση Αποτελεσμάτων
+- **Auto-incrementing filenames** (δεν γίνεται overwrite)
+- `training_results_X.txt` - Μεμονωμένα αποτελέσματα
+- `comparison_results_X.txt` - Συγκριτική ανάλυση
+- `best_model_[algorithm].pkl` - Το καλύτερο μοντέλο
+
 ### ✅ Ρυθμιζόμενες Παράμετροι
+- `ENABLE_MODELS` - Επιλογή αλγορίθμων (True/False)
 - `TEST_SIZE` - Test set ratio (default 0.20 = 20%)
 - `SMOTE_TARGET_RATIO` - SMOTE multiplier (default 10x)
-- Εύκολη προσαρμογή στο `train.py`
+- `MODEL_PARAMS` - Παράμετροι για κάθε αλγόριθμο
 
 ### ✅ Τεχνικά Χαρακτηριστικά
 - **Χρήση ΟΛΩΝ των στηλών** (84 features)
-- **Random Forest** με 100 trees
-- **StandardScaler** normalization
-- **Modular design** για συντήρηση
+- **StandardScaler** normalization για όλα τα μοντέλα
+- **Parallel processing** όπου υποστηρίζεται (n_jobs=-1)
+- **Modular design** για εύκολη συντήρηση
 - **Reproducible** (random_state=42)
 
 ---
 
 ## Χρήση
 
-### Εκπαίδευση
+### 🚀 Γρήγορη Εκκίνηση
+
+#### 1. Εγκατάσταση Απαιτήσεων
+```bash
+pip install pandas numpy scikit-learn imbalanced-learn
+```
+
+#### 2. Λήψη Dataset
+Κατεβάστε το `DrDoS_DNS.csv` από τα [GitHub Releases](https://github.com/kulisk/DrDoS-Detector/releases) και τοποθετήστε το στον φάκελο του project.
+
+#### 3. Εκπαίδευση με Default Ρυθμίσεις
 ```bash
 python train.py
 ```
 
-### Ρύθμιση Παραμέτρων
-Επεξεργασία του `train.py`:
+**Default Configuration:**
+- Enabled: Logistic Regression, Random Forest, Decision Tree
+- Disabled: SVM, KNN (αργοί για μεγάλα datasets)
+- Test Size: 20%
+- SMOTE Ratio: 10x
+
+---
+
+### ⚙️ Προχωρημένη Χρήση
+
+#### Επιλογή Αλγορίθμων
+Επεξεργαστείτε το `train.py` (γραμμές 25-31):
+```python
+ENABLE_MODELS = {
+    'Logistic Regression': True,   # Από το άρθρο - Αργός αλλά ακριβής
+    'Random Forest': True,          # Καλή ισορροπία
+    'SVM': False,                   # Πολύ αργός (enable μόνο για μικρά datasets)
+    'Decision Tree': True,          # Ταχύτερος & Καλύτερος 🏆
+    'KNN': False                    # Εξαιρετικά αργός (αποφύγετε)
+}
+```
+
+#### Ρύθμιση Παραμέτρων
+Επεξεργαστείτε το `train.py`:
 ```python
 TEST_SIZE = 0.20              # Test set ratio (20%)
 SMOTE_TARGET_RATIO = 10       # SMOTE multiplier (10x original BENIGN)
+RANDOM_STATE = 42             # Για reproducibility
 ```
 
-### Χρήση Αποθηκευμένου Μοντέλου
+#### Ρύθμιση Model Parameters
+Τροποποιήστε το dictionary `MODEL_PARAMS` στο `train.py`:
 ```python
-from model_persistence import load_model
-
-# Φόρτωση
-model_data = load_model('drdos_detector_model.pkl')
-clf = model_data['model']
-scaler = model_data['scaler']
-label_encoder = model_data['label_encoder']
-
-# Πρόβλεψη
-X_new_scaled = scaler.transform(X_new)
-predictions = clf.predict(X_new_scaled)
-labels = label_encoder.inverse_transform(predictions)
+MODEL_PARAMS = {
+    'Logistic Regression': {
+        'max_iter': 1000,
+        'random_state': RANDOM_STATE
+    },
+    'Random Forest': {
+        'n_estimators': 100,      # Περισσότερα trees = καλύτερη απόδοση
+        'max_depth': 30,
+        'min_samples_split': 5,
+        'min_samples_leaf': 2,
+        'random_state': RANDOM_STATE
+    },
+    # ... άλλοι αλγόριθμοι
+}
 ```
 
 ---
 
-## Απαιτήσεις
+### 📊 Έξοδος Αποτελεσμάτων
+
+#### Single Model Mode (1 enabled)
+- Console output με πλήρη μετρικές
+- `training_results_X.txt` με αποτελέσματα
+- `drdos_detector_model.pkl` με το μοντέλο
+
+#### Comparison Mode (>1 enabled)
+- Console output για κάθε μοντέλο
+- Συγκριτικός πίνακας στην κονσόλα
+- `comparison_results_X.txt` με πλήρη σύγκριση
+- `best_model_[algorithm].pkl` με το καλύτερο μοντέλο
+
+**Παράδειγμα Comparison Output:**
+```
+================================================================================
+MODEL COMPARISON
+================================================================================
+              Model Accuracy Precision Recall F1-Score Training Time (s) Total Time (s)
+      Decision Tree   0.9999    0.9999 0.9999   0.9999              0.36           0.39
+Logistic Regression   0.9996    0.9996 0.9996   0.9996              5.20           5.26
+      Random Forest   0.9994    0.9994 0.9994   0.9994              0.62           0.79
+================================================================================
+🏆 Best Model: Decision Tree
+================================================================================
+```
+
+---
+
+### 🔮 Χρήση Αποθηκευμένου Μοντέλου για Predictions
+### 🔮 Χρήση Αποθηκευμένου Μοντέλου για Predictions
+```python
+from model_persistence import load_model
+import pandas as pd
+
+# Φόρτωση καλύτερου μοντέλου
+model_data = load_model('best_model_decision_tree.pkl')
+clf = model_data['model']
+scaler = model_data['scaler']
+label_encoder = model_data['label_encoder']
+feature_names = model_data['feature_names']
+
+# Προετοιμασία νέων δεδομένων
+# X_new πρέπει να έχει τις ίδιες στήλες με το training set
+X_new = pd.DataFrame(...)  # Τα νέα δεδομένα σας
+
+# Κανονικοποίηση
+X_new_scaled = scaler.transform(X_new)
+
+# Πρόβλεψη
+predictions = clf.predict(X_new_scaled)
+probabilities = clf.predict_proba(X_new_scaled)
+
+# Μετατροπή σε labels
+labels = label_encoder.inverse_transform(predictions)
+
+print(f"Predictions: {labels}")
+print(f"Probabilities: {probabilities}")
+```
+
+---
+
+## 📁 Δομή Project
 
 ```
-pandas
-numpy
-scikit-learn
-imbalanced-learn
+DrDoS-Detector/
+├── train.py                      # Κύριο script εκτέλεσης
+├── data_preprocessing.py         # Φόρτωση & καθαρισμός δεδομένων
+├── data_balancing.py             # SMOTE implementation
+├── data_splitting.py             # Train/Test splitting
+├── model_training.py             # Εκπαίδευση αλγορίθμων (5 models)
+├── model_evaluation.py           # Αξιολόγηση & μετρικές
+├── model_comparison.py           # Σύγκριση μοντέλων
+├── model_persistence.py          # Αποθήκευση/Φόρτωση μοντέλων
+├── DrDoS_DNS.csv                 # Dataset (download από releases)
+├── README.md                     # Αυτό το αρχείο
+├── .gitignore                    # Git exclusions
+│
+├── training_results_*.txt        # Μεμονωμένα αποτελέσματα
+├── comparison_results_*.txt      # Συγκριτικές αναλύσεις
+├── best_model_*.pkl              # Αποθηκευμένα μοντέλα
+└── drdos_detector_model.pkl      # Single model output
 ```
 
-## Dataset
+---
+
+## 📦 Απαιτήσεις
+
+### Python Packages
+```txt
+pandas>=1.5.0
+numpy>=1.23.0
+scikit-learn>=1.2.0
+imbalanced-learn>=0.10.0
+```
+
+### Εγκατάσταση
+```bash
+pip install pandas numpy scikit-learn imbalanced-learn
+```
+
+### Σύστημα
+- Python 3.8+
+- RAM: 8GB+ συνιστάται (για το dataset των 5M+ samples)
+- CPU: Multi-core για parallel processing
+
+---
+
+## 📊 Dataset
 
 - **Αρχείο:** `DrDoS_DNS.csv`
 - **Λήψη:** Διαθέσιμο στα [GitHub Releases](https://github.com/kulisk/DrDoS-Detector/releases)
@@ -305,31 +809,229 @@ imbalanced-learn
 
 ### ❌ ΛΑΘΟΣ Approach:
 1. Split data → Train/Test
-2. Apply SMOTE → Training set
-3. **Πρόβλημα:** SMOTE δεδομένα leak στο test set ή test με ανισορροπημένα δεδομένα
+2. Apply SMOTE → Training set ΜΟΝΟ
+3. **Προβλήματα:**
+   - Πληροφορία από το test set μπορεί να "διαρρεύσει" στο training
+   - Test set παραμένει ανισορροπημένο
+   - Αναξιόπιστη αξιολόγηση
 
 ### ✅ ΣΩΣΤΟ Approach (αυτό το project):
-1. **Apply SMOTE FIRST** → BENIGN augmentation
-2. **Split AFTER** → Test = ALL original BENIGN + equal DDoS, Train = SMOTE + DDoS
-3. **Αποτέλεσμα:** Test set καθαρό, αξιόπιστη αξιολόγηση
+1. **Separate classes** → BENIGN & DDoS ξεχωριστά
+2. **Apply SMOTE FIRST** → BENIGN augmentation (3.4K → 33.5K)
+3. **Split AFTER SMOTE** → 
+   - Test = ALL original BENIGN + equal DDoS
+   - Train = SMOTE BENIGN + remaining DDoS
+4. **Αποτέλεσμα:** 
+   - Test set καθαρό (100% original data)
+   - Εξισορροπημένα train & test sets
+   - Αξιόπιστη αξιολόγηση
+   - Καμία data leakage
 
 ---
 
-## Τεχνικές Λεπτομέρειες
+## 🎓 Σύγκριση με το Άρθρο
+
+### Αλγόριθμος από το Άρθρο
+- **Logistic Regression** (κύριος αλγόριθμος)
+- Accuracy: ~96-98% (σύμφωνα με το άρθρο)
+
+### Αποτελέσματα Υλοποίησης
+| Αλγόριθμος | Accuracy | Σχόλια |
+|-----------|----------|---------|
+| **Decision Tree** 🥇 | **99.99%** | Υπερέχει του άρθρου, ταχύτατος |
+| **Logistic Regression** | **99.96%** | Καλύτερος από το άρθρο (~97%) |
+| **Random Forest** | **99.94%** | Εξαιρετική ισορροπία |
+
+### Πλεονεκτήματα Υλοποίησης
+✅ **Καλύτερη απόδοση** από το άρθρο (99.96% vs ~97%)  
+✅ **Πολλαπλοί αλγόριθμοι** με αυτόματη σύγκριση  
+✅ **Μέτρηση χρόνων** εκτέλεσης  
+✅ **Σωστή SMOTE στρατηγική** (ΠΡΙΝ το splitting)  
+✅ **Modular & Extensible** architecture  
+✅ **Production-ready** με auto-save features  
+
+---
+
+## 🔬 Τεχνικές Λεπτομέρειες
+
+## 🔬 Τεχνικές Λεπτομέρειες
 
 ### SMOTE Implementation
 - Χρήση `imblearn.over_sampling.SMOTE`
 - k_neighbors = min(5, len(BENIGN) - 1)
 - Δημιουργία συνθετικών samples με interpolation
+- Εφαρμογή ΠΡΙΝ το splitting για σωστή αξιολόγηση
 
 ### Data Splitting Logic
-- Test ratio calculation: `train = test * (1 - test_size) / test_size`
+- Test ratio calculation: `train_size = test_size * (1 - test_ratio) / test_ratio`
 - Subsampling SMOTE αν χρειαστεί για να ταιριάξει το ratio
-- Balanced train set για καλύτερη εκπαίδευση
+- Balanced train & test sets (50-50) για βέλτιστη εκπαίδευση
+- Τυχαία επιλογή DDoS samples χωρίς διπλότυπα
 
-### Random Forest Parameters
-- n_estimators: 100
-- max_depth: 30
-- min_samples_split: 5
-- min_samples_leaf: 2
-- n_jobs: -1 (παράλληλη επεξεργασία)
+### Model Parameters
+
+#### Logistic Regression
+```python
+LogisticRegression(
+    max_iter=1000,
+    random_state=42,
+    n_jobs=-1,      # Παράλληλη επεξεργασία
+    verbose=1
+)
+```
+
+#### Random Forest
+```python
+RandomForestClassifier(
+    n_estimators=100,
+    max_depth=30,
+    min_samples_split=5,
+    min_samples_leaf=2,
+    random_state=42,
+    n_jobs=-1,      # Παράλληλη επεξεργασία
+    verbose=1
+)
+```
+
+#### Decision Tree
+```python
+DecisionTreeClassifier(
+    max_depth=30,
+    min_samples_split=5,
+    min_samples_leaf=2,
+    random_state=42
+)
+```
+
+#### Support Vector Machine
+```python
+SVC(
+    kernel='rbf',
+    C=1.0,
+    random_state=42,
+    verbose=True
+)
+```
+
+#### K-Nearest Neighbors
+```python
+KNeighborsClassifier(
+    n_neighbors=5,
+    weights='uniform',
+    n_jobs=-1       # Παράλληλη επεξεργασία
+)
+```
+
+### Feature Importance Extraction
+- **Tree-based models** (RF, DT): `model.feature_importances_`
+- **Linear models** (LR, SVM): `np.abs(model.coef_[0])`
+- Αυτόματη ανίχνευση τύπου μοντέλου
+
+### Performance Optimization
+- **Parallel Processing**: Χρήση όλων των CPU cores (n_jobs=-1)
+- **Efficient Memory Usage**: Subsampling όπου χρειάζεται
+- **Vectorized Operations**: Pandas & NumPy optimizations
+- **Reproducibility**: Fixed random_state για consistency
+
+---
+
+## 🐛 Troubleshooting
+
+### Memory Issues
+Αν αντιμετωπίζετε προβλήματα μνήμης:
+```python
+# Μειώστε το SMOTE ratio
+SMOTE_TARGET_RATIO = 5  # Αντί για 10
+
+# Ή μειώστε το TEST_SIZE
+TEST_SIZE = 0.10  # Αντί για 0.20
+```
+
+### Slow Training
+Για ταχύτερη εκπαίδευση:
+```python
+# Απενεργοποιήστε τους αργούς αλγορίθμους
+ENABLE_MODELS = {
+    'Logistic Regression': False,  # Αργός
+    'Random Forest': False,
+    'SVM': False,                   # Πολύ αργός
+    'Decision Tree': True,          # Ταχύτερος
+    'KNN': False                    # Εξαιρετικά αργός
+}
+```
+
+### Dataset Not Found
+```bash
+# Βεβαιωθείτε ότι το CSV είναι στον σωστό φάκελο
+ls DrDoS_DNS.csv
+
+# Αν όχι, κατεβάστε από τα releases
+# και τοποθετήστε το στον root φάκελο του project
+```
+
+---
+
+## 📚 Αναφορές
+
+### Paper
+**"Predicting of DDoS Attack on DNS Server using Machine Learning"**
+- Χρησιμοποιεί: Logistic Regression
+- Dataset: DrDoS DNS Attack traces
+- Αποτελέσματα: ~96-98% accuracy
+
+### Βελτιώσεις αυτής της Υλοποίησης
+1. ✅ Υψηλότερη accuracy (99.94-99.99%)
+2. ✅ Πολλαπλοί αλγόριθμοι με αυτόματη σύγκριση
+3. ✅ Σωστή SMOTE implementation (ΠΡΙΝ splitting)
+4. ✅ Μέτρηση χρόνων εκτέλεσης
+5. ✅ Production-ready architecture
+6. ✅ Comprehensive documentation
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Για να συνεισφέρετε:
+
+1. Fork το repository
+2. Δημιουργήστε feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit τις αλλαγές σας (`git commit -m 'Add some AmazingFeature'`)
+4. Push στο branch (`git push origin feature/AmazingFeature`)
+5. Ανοίξτε Pull Request
+
+---
+
+## 📄 License
+
+Αυτό το project είναι ανοιχτού κώδικα και διαθέσιμο για εκπαιδευτικούς και ερευνητικούς σκοπούς.
+
+---
+
+## 👥 Authors
+
+**DrDoS-Detector Team**
+- Ανάπτυξη & Implementation
+- Βελτιστοποίηση Αλγορίθμων
+- Documentation & Testing
+
+---
+
+## 🙏 Acknowledgments
+
+- Το άρθρο που ενέπνευσε αυτήν την υλοποίηση
+- Scikit-learn community για τα εξαιρετικά ML tools
+- Imbalanced-learn για το SMOTE implementation
+- Όλους τους contributors και testers
+
+---
+
+## 📞 Contact & Support
+
+Για ερωτήσεις, issues ή suggestions:
+- 🐛 [GitHub Issues](https://github.com/kulisk/DrDoS-Detector/issues)
+- 📧 Email: [Διαθέσιμο στο GitHub Profile]
+- 📖 [Documentation](https://github.com/kulisk/DrDoS-Detector)
+
+---
+
+**⭐ Αν σας βοήθησε αυτό το project, δώστε ένα star στο GitHub! ⭐**
