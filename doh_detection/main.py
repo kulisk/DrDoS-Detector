@@ -74,15 +74,15 @@ def main():
     best_model_name, best_accuracy = evaluation_stage(results, y_test, le_label)
     
     # Summary
-    print(f"\n{'='*80}")
-    print(f"Best Model: {best_model_name} ({best_accuracy:.4f})")
+    print("\n" + "="*80)
+    print("Best Model: {} ({:.4f})".format(best_model_name, best_accuracy))
     print("="*80)
     
     print("\n" + "="*80)
     print("MALICIOUS DoH DETECTION - COMPLETED")
     print("="*80)
     
-    print(f"\nBest model: {best_model_name}")
+    print("\nBest model: {best_model_name}")
     print("Can detect:")
     print("  - DNS-over-HTTPS (DoH) traffic")
     print("  - Encrypted DNS communication")

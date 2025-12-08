@@ -18,8 +18,9 @@ import sys
 import time
 from datetime import datetime
 
-# Get Python executable path
-PYTHON_EXE = sys.executable
+# Get Python executable path - force Python 3
+PYTHON_EXE = 'py' if sys.platform == 'win32' else 'python3'
+PYTHON_ARGS = ['-3'] if sys.platform == 'win32' else []
 
 # Module paths
 MODULES = [
@@ -52,38 +53,43 @@ def print_header():
     print(" " * 20 + "DrDoS-DETECTOR - MASTER SCRIPT")
     print("="*80)
     print("\nThis script will run all DNS security modules sequentially.")
-    print(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("Start time: {}".format(datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
     print("\nModules to run:")
     for i, module in enumerate(MODULES, 1):
-        print(f"  {i}. {module['name']}")
-        print(f"     {module['description']}")
+        print("  {}. {}".format(i, module['name']))
+        print("     {}".format(module['description']))
     print("\n" + "="*80 + "\n")
 
 
 def run_module(module_info, module_num, total_modules):
     """Run a single module and track execution"""
     print("\n" + "="*80)
-    print(f"MODULE {module_num}/{total_modules}: {module_info['name']}")
+    print("MODULE {}/{}: {}".format(module_num, total_modules, module_info['name']))
     print("="*80)
-    print(f"Running: {module_info['path']}")
-    print(f"Description: {module_info['description']}")
+    print("Running: {}".format(module_info['path']))
+    print("Description: {}".format(module_info['description']))
     print("-"*80 + "\n")
     
     start_time = time.time()
     
     try:
-        # Run the module
+        # Run the module (extract directory from path)
+        module_dir = '/'.join(module_info['path'].split('/')[:-1])  # e.g., 'ddos_detector' from 'ddos_detector/main.py'
+        module_file = module_info['path'].split('/')[-1]  # e.g., 'main.py'
+        
+        cmd = [PYTHON_EXE] + PYTHON_ARGS + [module_file]
         result = subprocess.run(
-            [PYTHON_EXE, module_info['path']],
+            cmd,
             capture_output=False,
             text=True,
-            check=True
+            check=True,
+            cwd=module_dir if module_dir else None
         )
         
         elapsed_time = time.time() - start_time
         
         print("\n" + "-"*80)
-        print(f"[SUCCESS] {module_info['name']} completed in {elapsed_time:.2f} seconds")
+        print("[SUCCESS] {} completed in {:.2f} seconds".format(module_info['name'], elapsed_time))
         print("-"*80)
         
         return True, elapsed_time
@@ -92,8 +98,8 @@ def run_module(module_info, module_num, total_modules):
         elapsed_time = time.time() - start_time
         
         print("\n" + "-"*80)
-        print(f"[ERROR] {module_info['name']} failed after {elapsed_time:.2f} seconds")
-        print(f"Error code: {e.returncode}")
+        print("[ERROR] {} failed after {:.2f} seconds".format(module_info['name'], elapsed_time))
+        print("Error code: {}".format(e.returncode))
         print("-"*80)
         
         return False, elapsed_time
@@ -113,32 +119,26 @@ def print_summary(results):
     successful = sum(1 for r in results if r['status'])
     failed = len(results) - successful
     
-    print(f"\nTotal modules: {len(results)}")
-    print(f"Successful: {successful}")
-    print(f"Failed: {failed}")
-    print(f"Total time: {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
+    print("\nTotal modules: {}".format(len(results)))
+    print("Successful: {}".format(successful))
+    print("Failed: {}".format(failed))
+    print("Total time: {:.2f} seconds ({:.2f} minutes)".format(total_time, total_time/60))
     
     print("\nModule Results:")
     print("-"*80)
     
     for result in results:
         status = "[OK]" if result['status'] else "[FAIL]"
-        print(f"{status} {result['name']:<40} {result['time']:>8.2f}s")
+        print("{} {:<40} {:>8.2f}s".format(status, result['name'], result['time']))
     
     print("="*80)
-    print(f"Completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("Completed: {}".format(datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
     print("="*80 + "\n")
 
 
 def main():
     """Main execution function"""
     print_header()
-    
-    # Ask for confirmation
-    response = input("Do you want to continue? (y/n): ").strip().lower()
-    if response != 'y':
-        print("\nExecution cancelled.")
-        return
     
     results = []
     
@@ -151,13 +151,6 @@ def main():
             'status': success,
             'time': elapsed
         })
-        
-        # If a module fails, ask if we should continue
-        if not success:
-            response = input("\nModule failed. Continue with next module? (y/n): ").strip().lower()
-            if response != 'y':
-                print("\nExecution stopped by user.")
-                break
         
         # Small pause between modules
         if i < len(MODULES):

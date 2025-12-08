@@ -79,7 +79,7 @@ def _load_exfiltration_data(stateless_files, stateful_files, attack_folders):
     # Load attack data
     for folder in attack_folders:
         if os.path.exists(folder):
-            print(f"\n  Checking {folder}...")
+            print("\n  Checking {folder}...")
             for file in os.listdir(folder):
                 if file.endswith('.csv'):
                     filepath = os.path.join(folder, file)
@@ -96,9 +96,9 @@ def _load_exfiltration_data(stateless_files, stateful_files, attack_folders):
                             df['Label'] = 'Malicious'
                         
                         all_data.append(df)
-                        print(f"    [OK] {file}: {len(df):,} samples")
+                        print("    [OK] {file}: {len(df):,} samples")
                     except Exception as e:
-                        print(f"    [ERROR] {file}: {str(e)}")
+                        print("    [ERROR] {file}: {str(e)}")
     
     # Load benign data
     for filepath in stateless_files + stateful_files:
@@ -107,9 +107,9 @@ def _load_exfiltration_data(stateless_files, stateful_files, attack_folders):
                 df = pd.read_csv(filepath)
                 df['Label'] = 'Benign'
                 all_data.append(df)
-                print(f"  [OK] {os.path.basename(filepath)}: {len(df):,} samples")
+                print("  [OK] {os.path.basename(filepath)}: {len(df):,} samples")
             except Exception as e:
-                print(f"  [ERROR] {os.path.basename(filepath)}: {str(e)}")
+                print("  [ERROR] {os.path.basename(filepath)}: {str(e)}")
     
     if not all_data:
         print("\n[ERROR] No data found!")
@@ -118,14 +118,14 @@ def _load_exfiltration_data(stateless_files, stateful_files, attack_folders):
     # Combine all data
     df_combined = pd.concat(all_data, ignore_index=True)
     
-    print(f"\n  Total samples: {len(df_combined):,}")
-    print(f"  Total features: {len(df_combined.columns)-1}")
+    print("\n  Total samples: {len(df_combined):,}")
+    print("  Total features: {len(df_combined.columns)-1}")
     
     # Display label distribution
     print("\n  Label distribution:")
     for label, count in df_combined['Label'].value_counts().items():
         pct = 100 * count / len(df_combined)
-        print(f"    - {label}: {count:,} ({pct:.2f}%)")
+        print("    - {label}: {count:,} ({pct:.2f}%)")
     
     return df_combined
 
@@ -144,7 +144,7 @@ def _preprocess_data(df):
     
     # Handle missing values
     X = X.fillna(0)
-    print(f"  Null values after: {X.isnull().sum().sum()}")
+    print("  Null values after: {X.isnull().sum().sum()}")
     
     # Encode categorical columns
     for col in X.columns:
@@ -156,8 +156,8 @@ def _preprocess_data(df):
     le_label = LabelEncoder()
     y_encoded = le_label.fit_transform(y)
     
-    print(f"  Features: {X.shape[1]}")
-    print(f"  Classes: {len(le_label.classes_)}")
+    print("  Features: {X.shape[1]}")
+    print("  Classes: {len(le_label.classes_)}")
     
     return X, y_encoded, le_label
 
@@ -168,8 +168,8 @@ def _split_data(X, y, test_size, random_state):
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=random_state, stratify=y
     )
-    print(f"  Train samples: {len(X_train):,}")
-    print(f"  Test samples: {len(X_test):,}")
+    print("  Train samples: {len(X_train):,}")
+    print("  Test samples: {len(X_test):,}")
     return X_train, X_test, y_train, y_test
 
 
@@ -202,7 +202,7 @@ def _train_models(X_train_scaled, X_test_scaled, y_train, model_params, random_s
     results = {}
     
     for name, clf in models.items():
-        print(f"\n  Training {name}...")
+        print("\n  Training {name}...")
         clf.fit(X_train_scaled, y_train)
         
         # Predict
@@ -217,7 +217,7 @@ def _train_models(X_train_scaled, X_test_scaled, y_train, model_params, random_s
             'predictions': y_pred
         }
         
-        print(f"    Train Accuracy: {accuracy:.4f}")
+        print("    Train Accuracy: {accuracy:.4f}")
     
     return results
 
@@ -234,20 +234,20 @@ def _evaluate_models(results, y_test, le_label):
     best_accuracy = 0
     
     for name, result in results.items():
-        print(f"\n{'='*80}")
-        print(f"{name}")
+        print("\n{'='*80}")
+        print("{name}")
         print("="*80)
         
         y_pred = result['predictions']
         accuracy = accuracy_score(y_test, y_pred)
         
-        print(f"\nTest Accuracy: {accuracy:.4f}")
+        print("\nTest Accuracy: {accuracy:.4f}")
         
-        print(f"\nConfusion Matrix:")
+        print("\nConfusion Matrix:")
         cm = confusion_matrix(y_test, y_pred)
         print(cm)
         
-        print(f"\nClassification Report:")
+        print("\nClassification Report:")
         print(classification_report(y_test, y_pred, target_names=le_label.classes_))
         
         if accuracy > best_accuracy:

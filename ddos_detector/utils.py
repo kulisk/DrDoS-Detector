@@ -85,8 +85,8 @@ def _load_dataset(csv_path):
     """Load the DrDoS dataset from CSV file"""
     print("\n[1/7] Loading dataset...")
     df = pd.read_csv(csv_path, low_memory=False)
-    print(f"   Total samples: {len(df):,}")
-    print(f"   Total features: {len(df.columns)}")
+    print("   Total samples: {:,}".format(len(df)))
+    print("   Total features: {}".format(len(df.columns)))
     return df
 
 
@@ -110,8 +110,8 @@ def _clean_data(df):
     # Fill NaN with 0
     X = X.fillna(0)
     
-    print(f"   Features: {X.shape[1]}")
-    print(f"   Samples: {X.shape[0]:,}")
+    print("   Features: {}".format(X.shape[1]))
+    print("   Samples: {:,}".format(X.shape[0]))
     
     return X, y, label_col
 
@@ -125,7 +125,7 @@ def _encode_labels(y):
     for label, count in zip(*np.unique(y_encoded, return_counts=True)):
         label_name = le.inverse_transform([label])[0]
         pct = 100 * count / len(y_encoded)
-        print(f"     {label_name}: {count:,} ({pct:.2f}%)")
+        print("     {}: {:,} ({:.2f}%)".format(label_name, count, pct))
     
     return y_encoded, le
 
@@ -141,22 +141,21 @@ def _apply_smote(X, y, target_ratio, random_state):
     benign_count = np.sum(y == 0)
     ddos_count = np.sum(y == 1)
     
-    print(f"   Original BENIGN: {benign_count:,}")
-    print(f"   Original DDoS: {ddos_count:,}")
+    print("   Original BENIGN: {:,}".format(benign_count))
+    print("   Original DDoS: {:,}".format(ddos_count))
     
     target_benign = benign_count * target_ratio
     
     smote = SMOTE(
         sampling_strategy={0: target_benign},
-        random_state=random_state,
-        n_jobs=-1
+        random_state=random_state
     )
     
     X_resampled, y_resampled = smote.fit_resample(X, y)
     
     new_benign = np.sum(y_resampled == 0)
-    print(f"   After SMOTE BENIGN: {new_benign:,} (multiplied by {target_ratio}x)")
-    print(f"   Total samples after SMOTE: {len(X_resampled):,}")
+    print("   After SMOTE BENIGN: {:,} (multiplied by {}x)".format(new_benign, target_ratio))
+    print("   Total samples after SMOTE: {:,}".format(len(X_resampled)))
     
     return X_resampled, y_resampled
 
@@ -173,8 +172,8 @@ def _split_data(X, y, test_size, random_state):
         X, y, test_size=test_size, random_state=random_state, stratify=y
     )
     
-    print(f"   Train samples: {len(X_train):,}")
-    print(f"   Test samples: {len(X_test):,}")
+    print("   Train samples: {:,}".format(len(X_train)))
+    print("   Test samples: {:,}".format(len(X_test)))
     
     return X_train, X_test, y_train, y_test
 
@@ -255,7 +254,7 @@ def _save_model(clf, scaler, le, filename):
     with open(filename, 'wb') as f:
         pickle.dump(model_data, f)
     
-    print(f"\n   Model saved: {filename}")
+    print("\n   Model saved: {}".format(filename))
 
 
 def load_model(filename='model.pkl'):

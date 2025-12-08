@@ -57,15 +57,15 @@ def main():
     print("\n" + "="*80)
     print("DNS REFLECTOR ANALYSIS - COMPLETED")
     print("="*80)
-    print(f"\nReport saved: {OUTPUT_REPORT}")
+    print("\nReport saved: {}".format(OUTPUT_REPORT))
     print("\nKey Findings:")
-    print(f"  - Analyzed {results['total_domains']:,} total domains")
-    print(f"  - Found {results['unique_domains']:,} unique domains")
-    print(f"  - Average domain length: {results['avg_length']:.1f} characters")
+    print("  - Analyzed {:,} total domains".format(results['total_domains']))
+    print("  - Found {:,} unique domains".format(results['unique_domains']))
+    print("  - Average domain length: {:.1f} characters".format(results['avg_length']))
     if results['top_tlds']:
         top_tld, top_count = results['top_tlds'][0]
         pct = 100 * top_count / results['total_domains']
-        print(f"  - Most common TLD: .{top_tld} ({pct:.1f}%)")
+        print("  - Most common TLD: .{} ({:.1f}%)".format(top_tld, pct))
     
     print("\n" + "="*80)
 

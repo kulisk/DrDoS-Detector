@@ -94,7 +94,7 @@ def main():
         if not enabled:
             continue
         
-        print(f"\n   Training {model_name}...")
+        print("\n   Training {}...".format(model_name))
         clf, train_time = training_stage(model_name, X_train_scaled, y_train, MODEL_PARAMS[model_name])
         
         eval_results = evaluation_stage(clf, X_test_scaled, y_test, le)
@@ -108,8 +108,8 @@ def main():
             'report': eval_results['report']
         }
         
-        print(f"      Accuracy: {eval_results['accuracy']:.4f}")
-        print(f"      Train time: {train_time:.2f}s")
+        print("      Accuracy: {:.4f}".format(eval_results['accuracy']))
+        print("      Train time: {:.2f}s".format(train_time))
     
     # Stage 3: Comparison and Persistence
     print("\n[7/7] Model comparison...")
@@ -118,14 +118,14 @@ def main():
     best_accuracy = 0
     
     for name, result in results.items():
-        print(f"\n{'='*80}")
-        print(f"{name}")
+        print("\n" + "="*80)
+        print(name)
         print("="*80)
-        print(f"\nAccuracy: {result['accuracy']:.4f}")
-        print(f"Training time: {result['train_time']:.2f}s")
-        print(f"\nConfusion Matrix:")
+        print("\nAccuracy: {:.4f}".format(result['accuracy']))
+        print("Training time: {:.2f}s".format(result['train_time']))
+        print("\nConfusion Matrix:")
         print(result['confusion_matrix'])
-        print(f"\nClassification Report:")
+        print("\nClassification Report:")
         print(result['report'])
         
         if result['accuracy'] > best_accuracy:
@@ -133,12 +133,12 @@ def main():
             best_model_name = name
     
     if best_model_name:
-        print(f"\n{'='*80}")
-        print(f"BEST MODEL: {best_model_name} ({best_accuracy:.4f})")
+        print("\n" + "="*80)
+        print("BEST MODEL: {} ({:.4f})".format(best_model_name, best_accuracy))
         print("="*80)
         
         best_clf = results[best_model_name]['model']
-        persistence_stage(best_clf, scaler, le, f'best_model_{best_model_name.lower().replace(" ", "_")}.pkl')
+        persistence_stage(best_clf, scaler, le, 'best_model_{}.pkl'.format(best_model_name.lower().replace(" ", "_")))
     
     print("\n" + "="*80)
     print("TRAINING COMPLETE")

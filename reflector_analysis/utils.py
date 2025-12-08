@@ -55,7 +55,7 @@ def _load_domains(dataset_paths):
     
     for path in dataset_paths:
         if not os.path.exists(path):
-            print(f"  [SKIP] File not found: {path}")
+            print("  [SKIP] File not found: {path}")
             continue
         
         try:
@@ -69,19 +69,19 @@ def _load_domains(dataset_paths):
                 for col in domain_cols:
                     domains = df[col].dropna().astype(str).tolist()
                     all_domains.extend(domains)
-                    print(f"  [OK] {os.path.basename(path)}: {len(domains):,} domains")
+                    print("  [OK] {os.path.basename(path)}: {len(domains):,} domains")
             else:
                 # Try first text column
                 text_cols = df.select_dtypes(include=['object']).columns
                 if len(text_cols) > 0:
                     domains = df[text_cols[0]].dropna().astype(str).tolist()
                     all_domains.extend(domains)
-                    print(f"  [OK] {os.path.basename(path)}: {len(domains):,} domains")
+                    print("  [OK] {os.path.basename(path)}: {len(domains):,} domains")
         
         except Exception as e:
-            print(f"  [ERROR] {os.path.basename(path)}: {str(e)}")
+            print("  [ERROR] {os.path.basename(path)}: {str(e)}")
     
-    print(f"\n  Total domains loaded: {len(all_domains):,}")
+    print("\n  Total domains loaded: {len(all_domains):,}")
     
     return all_domains
 
@@ -124,16 +124,16 @@ def _analyze_characteristics(domains):
     }
     
     # Display summary
-    print(f"\n  Statistics:")
-    print(f"    Total domains: {results['total_domains']:,}")
-    print(f"    Unique domains: {results['unique_domains']:,}")
-    print(f"    Average length: {results['avg_length']:.2f} characters")
+    print("\n  Statistics:")
+    print("    Total domains: {results['total_domains']:,}")
+    print("    Unique domains: {results['unique_domains']:,}")
+    print("    Average length: {results['avg_length']:.2f} characters")
     
-    print(f"\n  Top 10 TLDs:")
+    print("\n  Top 10 TLDs:")
     total = results['total_domains']
     for tld, count in results['top_tlds']:
         pct = 100 * count / total
-        print(f"    .{tld}: {count:,} ({pct:.2f}%)")
+        print("    .{tld}: {count:,} ({pct:.2f}%)")
     
     return results
 
@@ -144,7 +144,7 @@ def _analyze_characteristics(domains):
 
 def _save_report(results, output_file):
     """Save analysis report to file"""
-    print(f"\n[3/3] Saving report to {output_file}...")
+    print("\n[3/3] Saving report to {output_file}...")
     
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write("="*80 + "\n")
@@ -153,22 +153,22 @@ def _save_report(results, output_file):
         
         f.write("DOMAIN STATISTICS\n")
         f.write("-"*80 + "\n")
-        f.write(f"Total domains analyzed: {results['total_domains']:,}\n")
-        f.write(f"Unique domains: {results['unique_domains']:,}\n")
-        f.write(f"Average domain length: {results['avg_length']:.2f} characters\n\n")
+        f.write("Total domains analyzed: {results['total_domains']:,}\n")
+        f.write("Unique domains: {results['unique_domains']:,}\n")
+        f.write("Average domain length: {results['avg_length']:.2f} characters\n\n")
         
         f.write("TOP-LEVEL DOMAIN (TLD) DISTRIBUTION\n")
         f.write("-"*80 + "\n")
-        f.write(f"{'TLD':<20} {'Count':<15} {'Percentage'}\n")
+        f.write("{'TLD':<20} {'Count':<15} {'Percentage'}\n")
         f.write("-"*80 + "\n")
         
         total = results['total_domains']
         for tld, count in results['tld_distribution']:
             pct = 100 * count / total
-            f.write(f".{tld:<19} {count:<15,} {pct:>6.2f}%\n")
+            f.write(".{tld:<19} {count:<15,} {pct:>6.2f}%\n")
         
         f.write("\n" + "="*80 + "\n")
         f.write("END OF REPORT\n")
         f.write("="*80 + "\n")
     
-    print(f"  Report saved successfully!")
+    print("  Report saved successfully!")
