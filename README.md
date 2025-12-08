@@ -30,9 +30,21 @@ pip install -r requirements.txt
 
 ### Installation
 
+1. **Clone the repository:**
 ```bash
 git clone https://github.com/kulisk/DrDoS-Detector.git
 cd DrDoS-Detector
+```
+
+2. **Download datasets:**
+
+The datasets are available separately due to their size. Download them from:
+**[GitHub Releases - Datasets](https://github.com/kulisk/DrDoS-Detector/releases/tag/dataset)**
+
+Extract the `datasets/` folder to the project root directory.
+
+3. **Install dependencies:**
+```bash
 pip install -r requirements.txt
 ```
 
@@ -427,7 +439,25 @@ def _train_model(...):
 
 ## 📈 Datasets
 
-### Required Datasets
+### Download Datasets
+
+**⚠️ Important:** The datasets are hosted separately due to their large size.
+
+**Download from:** [GitHub Releases - Datasets](https://github.com/kulisk/DrDoS-Detector/releases/tag/dataset)
+
+After downloading, extract the `datasets/` folder to the project root:
+```
+DrDoS-Detector/
+├── datasets/          # <- Extract here
+│   ├── DrDoS_DNS.csv
+│   ├── l1-doh.csv
+│   └── ...
+├── ddos_detector/
+├── exfiltration_detection/
+└── ...
+```
+
+### Dataset Details
 
 Place datasets in the `datasets/` folder:
 
