@@ -1,264 +1,718 @@
-# -*- coding: utf-8 -*-
 """
-DrDoS Amplification Detection - Utility Functions
-=================================================
-All helper functions organized by pipeline stages.
-
-Author: DrDoS-Detector Team
+Utility functions for the DrDoS DNS detection pipeline.
+Aggregates data loading/preprocessing, balancing, splitting, training,
+comparison, evaluation, and persistence helpers into a single module.
 """
 
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.svm import SVC
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
-from imblearn.over_sampling import SMOTE
-import pickle
+import os
 import time
+import warnings
+from datetime import datetime
+from typing import Dict, List, Tuple
+
+import numpy as np
+import pandas as pd
+from imblearn.over_sampling import SMOTE
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+)
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+
+warnings.filterwarnings("ignore")
+
+# =============================================================================
+# Data loading and preprocessing
+# =============================================================================
 
 
-# ============================================================================
-# STAGE FUNCTIONS (Top-level pipeline stages)
-# ============================================================================
-
-def preprocessing_stage(csv_path, smote_ratio, test_size, random_state):
+def load_dataset(csv_path: str) -> pd.DataFrame:
     """
-    Complete preprocessing pipeline: Load → Clean → Encode → Balance → Split → Scale
-    
-    Returns:
-        tuple: (X_train_scaled, X_test_scaled, y_train, y_test, scaler, label_encoder)
+    Load the DrDoS dataset from CSV file.
     """
-    # Load and clean
-    df = _load_dataset(csv_path)
-    X, y, label_col = _clean_data(df)
-    y_encoded, le = _encode_labels(y)
-    
-    # Balance with SMOTE
-    X_smote, y_smote = _apply_smote(X, y_encoded, smote_ratio, random_state)
-    
-    # Split
-    X_train, X_test, y_train, y_test = _split_data(X_smote, y_smote, test_size, random_state)
-    
-    # Scale
-    X_train_scaled, X_test_scaled, scaler = _scale_features(X_train, X_test)
-    
-    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, le
-
-
-def training_stage(model_name, X_train, y_train, params):
-    """
-    Train a model with given parameters
-    
-    Returns:
-        tuple: (trained_model, training_time)
-    """
-    return _train_model(model_name, X_train, y_train, params)
-
-
-def evaluation_stage(model, X_test, y_test, label_encoder):
-    """
-    Evaluate model performance
-    
-    Returns:
-        dict: {'accuracy', 'predictions', 'confusion_matrix', 'report', 'eval_time'}
-    """
-    return _evaluate_model(model, X_test, y_test, label_encoder)
-
-
-def persistence_stage(model, scaler, label_encoder, filename):
-    """
-    Save trained model with scaler and label encoder
-    """
-    _save_model(model, scaler, label_encoder, filename)
-
-
-# ============================================================================
-# PREPROCESSING HELPERS
-# ============================================================================
-
-def _load_dataset(csv_path):
-    """Load the DrDoS dataset from CSV file"""
     print("\n[1/7] Loading dataset...")
     df = pd.read_csv(csv_path, low_memory=False)
-    print("   Total samples: {:,}".format(len(df)))
-    print("   Total features: {}".format(len(df.columns)))
+    print(f"   Total samples: {len(df):,}")
+    print(f"   Total features: {len(df.columns)}")
     return df
 
 
-def _clean_data(df):
-    """Clean and preprocess the dataset"""
+def clean_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, str]:
+    """
+    Clean and preprocess the dataset.
+    """
     print("\n[2/7] Cleaning data...")
-    
-    # Remove unnamed columns
-    df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
-    
-    # Identify label column
-    label_col = ' Label' if ' Label' in df.columns else 'Label'
-    
-    # Separate features and labels
+
+    columns_to_drop = ["Unnamed: 0", "Flow ID", " Timestamp"]
+    existing_cols_to_drop = [col for col in columns_to_drop if col in df.columns]
+    df = df.drop(columns=existing_cols_to_drop)
+
+    if " Label" in df.columns:
+        label_col = " Label"
+    elif "Label" in df.columns:
+        label_col = "Label"
+    else:
+        raise ValueError("Label column not found!")
+
+    print(f"   Label column: '{label_col}'")
+    print("   Replacing infinity values...")
+
+    df = df.replace([np.inf, -np.inf], np.nan)
+    df = df.dropna()
+
+    print(f"   Null values before: {df.isnull().sum().sum()}")
+    df = df.dropna()
+    print(f"   Null values after: {df.isnull().sum().sum()}")
+
     X = df.drop(columns=[label_col])
     y = df[label_col]
-    
-    # Handle infinite values
-    X = X.replace([np.inf, -np.inf], np.nan)
-    
-    # Fill NaN with 0
-    X = X.fillna(0)
-    
-    print("   Features: {}".format(X.shape[1]))
-    print("   Samples: {:,}".format(X.shape[0]))
-    
+
+    print("   Encoding categorical features...")
+    for col in X.columns:
+        if X[col].dtype == "object":
+            le = LabelEncoder()
+            X[col] = le.fit_transform(X[col].astype(str))
+
+    print("\n   Class distribution:")
+    for label, count in zip(*np.unique(y, return_counts=True)):
+        percentage = (count / len(y)) * 100
+        print(f"   - {label}: {count:,} samples ({percentage:.2f}%)")
+
+    print(f"\n   Total features to be used: {len(X.columns)}")
     return X, y, label_col
 
 
-def _encode_labels(y):
-    """Encode string labels to numeric"""
-    le = LabelEncoder()
-    y_encoded = le.fit_transform(y)
-    
-    print("\n   Label distribution:")
-    for label, count in zip(*np.unique(y_encoded, return_counts=True)):
-        label_name = le.inverse_transform([label])[0]
-        pct = 100 * count / len(y_encoded)
-        print("     {}: {:,} ({:.2f}%)".format(label_name, count, pct))
-    
-    return y_encoded, le
+def encode_labels(y: pd.Series) -> Tuple[np.ndarray, LabelEncoder]:
+    """
+    Encode string labels to numeric values.
+    """
+    le_label = LabelEncoder()
+    y_encoded = le_label.fit_transform(y)
+    return y_encoded, le_label
 
 
-# ============================================================================
-# BALANCING HELPERS
-# ============================================================================
+# =============================================================================
+# Balancing
+# =============================================================================
 
-def _apply_smote(X, y, target_ratio, random_state):
-    """Apply SMOTE to balance BENIGN class"""
+
+def apply_smote_to_benign(
+    X_benign: pd.DataFrame,
+    y_benign: np.ndarray,
+    target_samples: int,
+    random_state: int = 42,
+) -> Tuple[pd.DataFrame, np.ndarray]:
+    """
+    Apply SMOTE to BENIGN (minority) class BEFORE splitting.
+    """
     print("\n[3/7] Applying SMOTE to BENIGN class...")
-    
-    benign_count = np.sum(y == 0)
-    ddos_count = np.sum(y == 1)
-    
-    print("   Original BENIGN: {:,}".format(benign_count))
-    print("   Original DDoS: {:,}".format(ddos_count))
-    
-    target_benign = benign_count * target_ratio
-    
+    print(f"   Original BENIGN samples: {len(X_benign):,}")
+    print(f"   Target BENIGN samples after SMOTE: {target_samples:,}")
+
+    y_dummy_attack = np.ones(target_samples, dtype=int) * (1 - y_benign[0])
+    X_dummy_attack = pd.DataFrame(
+        np.zeros((target_samples, X_benign.shape[1])), columns=X_benign.columns
+    )
+
+    X_combined = pd.concat([X_benign, X_dummy_attack], ignore_index=True)
+    y_combined = np.concatenate([y_benign, y_dummy_attack])
+
     smote = SMOTE(
-        sampling_strategy={0: target_benign},
-        random_state=random_state
+        sampling_strategy={y_benign[0]: target_samples},
+        random_state=random_state,
+        k_neighbors=min(5, len(X_benign) - 1),
     )
-    
-    X_resampled, y_resampled = smote.fit_resample(X, y)
-    
-    new_benign = np.sum(y_resampled == 0)
-    print("   After SMOTE BENIGN: {:,} (multiplied by {}x)".format(new_benign, target_ratio))
-    print("   Total samples after SMOTE: {:,}".format(len(X_resampled)))
-    
-    return X_resampled, y_resampled
+
+    X_resampled, y_resampled = smote.fit_resample(X_combined, y_combined)
+
+    benign_mask = y_resampled == y_benign[0]
+    X_benign_smote = pd.DataFrame(X_resampled[benign_mask], columns=X_benign.columns)
+    y_benign_smote = y_resampled[benign_mask]
+
+    print(f"   BENIGN samples after SMOTE: {len(X_benign_smote):,}")
+    print(f"   SMOTE generated {len(X_benign_smote) - len(X_benign):,} synthetic samples")
+    return X_benign_smote, y_benign_smote
 
 
-# ============================================================================
-# SPLITTING HELPERS
-# ============================================================================
+# =============================================================================
+# Splitting
+# =============================================================================
 
-def _split_data(X, y, test_size, random_state):
-    """Split data into train/test sets"""
-    print("\n[4/7] Splitting data...")
-    
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state, stratify=y
-    )
-    
-    print("   Train samples: {:,}".format(len(X_train)))
-    print("   Test samples: {:,}".format(len(X_test)))
-    
+
+def split_data_after_smote(
+    X_benign_original: pd.DataFrame,
+    y_benign_original: np.ndarray,
+    X_benign_smote: pd.DataFrame,
+    y_benign_smote: np.ndarray,
+    X_attack: pd.DataFrame,
+    y_attack: np.ndarray,
+    le_label,
+    test_size: float = 0.20,
+    random_state: int = 42,
+) -> Tuple[pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray]:
+    """
+    Split data into train and test sets AFTER SMOTE.
+    """
+    print(f"\n[4/7] Splitting data with corrected strategy (test_size={test_size})...")
+    print("   Strategy:")
+    print("   - Test: ALL original BENIGN + equal DDoS samples")
+    print("   - Train: SMOTE BENIGN + remaining DDoS")
+
+    np.random.seed(random_state)
+
+    num_benign_test = len(X_benign_original)
+    num_attack_test = num_benign_test
+
+    print("\n   Test set composition:")
+    print(f"   - BENIGN (all original): {num_benign_test:,}")
+    print(f"   - DDoS (random selection): {num_attack_test:,}")
+
+    attack_test_indices = np.random.choice(len(X_attack), size=num_attack_test, replace=False)
+
+    X_test_benign = X_benign_original.copy()
+    y_test_benign = y_benign_original.copy()
+
+    X_test_attack = X_attack.iloc[attack_test_indices].copy()
+    y_test_attack = y_attack[attack_test_indices].copy()
+
+    X_test = pd.concat([X_test_benign, X_test_attack], ignore_index=True)
+    y_test = np.concatenate([y_test_benign, y_test_attack])
+
+    shuffle_indices = np.random.permutation(len(X_test))
+    X_test = X_test.iloc[shuffle_indices].copy()
+    y_test = y_test[shuffle_indices].copy()
+
+    print(f"   - Total test samples: {len(X_test):,}")
+
+    num_train_total = int(len(X_test) * (1 - test_size) / test_size)
+
+    print(f"\n   Calculating train set size for {test_size*100}% test ratio:")
+    print(f"   - Total train samples needed: {num_train_total:,}")
+
+    num_benign_train_available = len(X_benign_smote)
+
+    if num_benign_train_available > num_train_total:
+        print(
+            f"   - SMOTE BENIGN ({num_benign_train_available:,}) > needed total ({num_train_total:,})"
+        )
+        print("   - Subsampling SMOTE BENIGN to fit ratio...")
+        num_benign_train = min(num_benign_train_available, num_train_total // 2)
+        num_attack_train = num_train_total - num_benign_train
+    else:
+        num_benign_train = num_benign_train_available
+        num_attack_train = num_train_total - num_benign_train
+
+    if num_attack_train < 0:
+        print("   ⚠ Adjusting: using all SMOTE BENIGN and no DDoS in train")
+        num_benign_train = num_benign_train_available
+        num_attack_train = 0
+
+    attack_train_mask = np.ones(len(X_attack), dtype=bool)
+    attack_train_mask[attack_test_indices] = False
+    attack_available_indices = np.where(attack_train_mask)[0]
+
+    print("\n   Train set composition:")
+    print(f"   - BENIGN (SMOTE) to use: {num_benign_train:,}")
+    print(f"   - DDoS available: {len(attack_available_indices):,}")
+    print(f"   - DDoS needed: {num_attack_train:,}")
+
+    if num_benign_train < len(X_benign_smote):
+        benign_train_indices = np.random.choice(
+            len(X_benign_smote), size=num_benign_train, replace=False
+        )
+        X_train_benign = X_benign_smote.iloc[benign_train_indices].copy()
+        y_train_benign = y_benign_smote[benign_train_indices].copy()
+    else:
+        X_train_benign = X_benign_smote.copy()
+        y_train_benign = y_benign_smote.copy()
+
+    if num_attack_train == 0:
+        X_train_attack = pd.DataFrame(columns=X_attack.columns)
+        y_train_attack = np.array([], dtype=y_attack.dtype)
+    elif num_attack_train > len(attack_available_indices):
+        print(
+            f"   ⚠ Not enough DDoS samples! Using all available: {len(attack_available_indices):,}"
+        )
+        X_train_attack = X_attack.iloc[attack_available_indices].copy()
+        y_train_attack = y_attack[attack_available_indices].copy()
+    else:
+        attack_train_indices = np.random.choice(
+            attack_available_indices, size=num_attack_train, replace=False
+        )
+        X_train_attack = X_attack.iloc[attack_train_indices].copy()
+        y_train_attack = y_attack[attack_train_indices].copy()
+
+    X_train = pd.concat([X_train_benign, X_train_attack], ignore_index=True)
+    y_train = np.concatenate([y_train_benign, y_train_attack])
+
+    shuffle_indices = np.random.permutation(len(X_train))
+    X_train = X_train.iloc[shuffle_indices].copy()
+    y_train = y_train[shuffle_indices].copy()
+
+    print(f"   - Total train samples: {len(X_train):,}")
+
+    actual_test_size = len(X_test) / (len(X_train) + len(X_test))
+    print("\n   Verification:")
+    print(f"   - Train size: {len(X_train):,}")
+    print(f"   - Test size: {len(X_test):,}")
+    print(f"   - Actual test ratio: {actual_test_size:.2%}")
+    print(f"   - BENIGN in test: {sum(y_test == le_label.transform(['BENIGN'])[0]):,}")
+    print(f"   - DDoS in test: {sum(y_test == le_label.transform(['DrDoS_DNS'])[0]):,}")
+    print(f"   - BENIGN in train: {sum(y_train == le_label.transform(['BENIGN'])[0]):,}")
+    print(f"   - DDoS in train: {sum(y_train == le_label.transform(['DrDoS_DNS'])[0]):,}")
+
     return X_train, X_test, y_train, y_test
 
 
-# ============================================================================
-# SCALING HELPERS
-# ============================================================================
+# =============================================================================
+# Scaling and training
+# =============================================================================
 
-def _scale_features(X_train, X_test):
-    """Scale features using StandardScaler"""
+
+def scale_features(X_train: np.ndarray, X_test: np.ndarray) -> Tuple:
+    """Scale features using StandardScaler."""
     print("\n[5/7] Scaling features...")
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
+
+    print("   Features scaled using StandardScaler")
+    print(f"   Training shape: {X_train_scaled.shape}")
+    print(f"   Test shape: {X_test_scaled.shape}")
     return X_train_scaled, X_test_scaled, scaler
 
 
-# ============================================================================
-# TRAINING HELPERS
-# ============================================================================
+def train_logistic_regression(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    max_iter: int = 1000,
+    random_state: int = 42,
+) -> LogisticRegression:
+    """Train Logistic Regression classifier."""
+    print("\n[6/7] Training Logistic Regression classifier...")
+    print("   Χρησιμοποιούνται ΟΛΕΣ οι στήλες του dataset")
+    print(f"   Total features used: {X_train.shape[1]}")
 
-def _train_model(model_name, X_train, y_train, params):
-    """Train a single model"""
-    
-    models = {
-        'Logistic Regression': LogisticRegression(**params),
-        'Random Forest': RandomForestClassifier(**params),
-        'Decision Tree': DecisionTreeClassifier(**params),
-        'SVM': SVC(**params),
-        'KNN': KNeighborsClassifier(**params)
-    }
-    
-    clf = models[model_name]
-    
-    start_time = time.time()
+    clf = LogisticRegression(
+        max_iter=max_iter, random_state=random_state, n_jobs=-1, verbose=1
+    )
     clf.fit(X_train, y_train)
-    training_time = time.time() - start_time
-    
-    return clf, training_time
+    print("\n   Training completed!")
+    return clf
 
 
-# ============================================================================
-# EVALUATION HELPERS
-# ============================================================================
+def train_random_forest(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    n_estimators: int = 100,
+    max_depth: int = 30,
+    min_samples_split: int = 5,
+    min_samples_leaf: int = 2,
+    random_state: int = 42,
+) -> RandomForestClassifier:
+    """Train Random Forest classifier."""
+    print("\n[6/7] Training Random Forest classifier...")
+    print("   Χρησιμοποιούνται ΟΛΕΣ οι στήλες του dataset")
+    print(f"   Total features used: {X_train.shape[1]}")
 
-def _evaluate_model(clf, X_test, y_test, le):
-    """Evaluate model performance"""
-    
-    start_time = time.time()
+    clf = RandomForestClassifier(
+        n_estimators=n_estimators,
+        max_depth=max_depth,
+        min_samples_split=min_samples_split,
+        min_samples_leaf=min_samples_leaf,
+        random_state=random_state,
+        n_jobs=-1,
+        verbose=1,
+    )
+    clf.fit(X_train, y_train)
+    print("\n   Training completed!")
+    return clf
+
+
+def train_svm(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    kernel: str = "rbf",
+    C: float = 1.0,
+    random_state: int = 42,
+) -> SVC:
+    """Train Support Vector Machine classifier."""
+    print("\n[6/7] Training SVM classifier...")
+    print("   Χρησιμοποιούνται ΟΛΕΣ οι στήλες του dataset")
+    print(f"   Total features used: {X_train.shape[1]}")
+
+    clf = SVC(kernel=kernel, C=C, random_state=random_state, verbose=True)
+    clf.fit(X_train, y_train)
+    print("\n   Training completed!")
+    return clf
+
+
+def train_decision_tree(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    max_depth: int = 30,
+    min_samples_split: int = 5,
+    min_samples_leaf: int = 2,
+    random_state: int = 42,
+) -> DecisionTreeClassifier:
+    """Train Decision Tree classifier."""
+    print("\n[6/7] Training Decision Tree classifier...")
+    print("   Χρησιμοποιούνται ΟΛΕΣ οι στήλες του dataset")
+    print(f"   Total features used: {X_train.shape[1]}")
+
+    clf = DecisionTreeClassifier(
+        max_depth=max_depth,
+        min_samples_split=min_samples_split,
+        min_samples_leaf=min_samples_leaf,
+        random_state=random_state,
+    )
+    clf.fit(X_train, y_train)
+    print("\n   Training completed!")
+    return clf
+
+
+def train_knn(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    n_neighbors: int = 5,
+    weights: str = "uniform",
+) -> KNeighborsClassifier:
+    """Train K-Nearest Neighbors classifier."""
+    print("\n[6/7] Training KNN classifier...")
+    print("   Χρησιμοποιούνται ΟΛΕΣ οι στήλες του dataset")
+    print(f"   Total features used: {X_train.shape[1]}")
+
+    clf = KNeighborsClassifier(n_neighbors=n_neighbors, weights=weights, n_jobs=-1)
+    clf.fit(X_train, y_train)
+    print("\n   Training completed!")
+    return clf
+
+
+# =============================================================================
+# Evaluation
+# =============================================================================
+
+
+def evaluate_model(
+    clf,
+    X_test: np.ndarray,
+    y_test: np.ndarray,
+    le_label,
+    feature_names: List[str],
+) -> Dict:
+    """Evaluate model and display comprehensive metrics."""
+    print("\n[7/7] Evaluating model...")
+
     y_pred = clf.predict(X_test)
-    eval_time = time.time() - start_time
-    
-    accuracy = accuracy_score(y_test, y_pred)
+
+    print("\n" + "=" * 80)
+    print("RESULTS")
+    print("=" * 80)
+
+    print("\nConfusion Matrix:")
     cm = confusion_matrix(y_test, y_pred)
-    report = classification_report(y_test, y_pred, target_names=le.classes_)
-    
+    print(cm)
+
+    print("\nClassification Report:")
+    print(classification_report(y_test, y_pred, target_names=le_label.classes_))
+
+    accuracy = accuracy_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred, average="weighted")
+    recall = recall_score(y_test, y_pred, average="weighted")
+    f1 = f1_score(y_test, y_pred, average="weighted")
+
+    print("\nSummary Metrics:")
+    print(f"Accuracy:  {accuracy:.4f}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall:    {recall:.4f}")
+    print(f"F1-Score:  {f1:.4f}")
+
+    print("\n" + "=" * 80)
+    print("TOP 20 MOST IMPORTANT FEATURES")
+    print("=" * 80)
+
+    if hasattr(clf, "feature_importances_"):
+        importances = clf.feature_importances_
+    elif hasattr(clf, "coef_"):
+        importances = np.abs(clf.coef_[0])
+    else:
+        importances = np.zeros(len(feature_names))
+
+    feature_importance = pd.DataFrame(
+        {"feature": feature_names, "importance": importances}
+    ).sort_values("importance", ascending=False)
+
+    print(feature_importance.head(20).to_string(index=False))
+
     return {
-        'accuracy': accuracy,
-        'predictions': y_pred,
-        'confusion_matrix': cm,
-        'report': report,
-        'eval_time': eval_time
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "f1_score": f1,
+        "confusion_matrix": cm,
+        "feature_importance": feature_importance,
     }
 
 
-# ============================================================================
-# PERSISTENCE HELPERS
-# ============================================================================
+def get_next_results_filename(base_name: str = "training_results", extension: str = "txt") -> str:
+    """Generate next available filename with incremental numbering."""
+    counter = 1
+    while True:
+        filename = f"{base_name}_{counter}.{extension}"
+        if not os.path.exists(filename):
+            return filename
+        counter += 1
 
-def _save_model(clf, scaler, le, filename):
-    """Save trained model"""
+
+def save_results_to_file(
+    metrics: Dict,
+    config: Dict,
+    train_test_info: Dict,
+    le_label,
+    filename: str | None = None,
+) -> str:
+    """Save training results to a text file."""
+    if filename is None:
+        filename = get_next_results_filename()
+
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write("=" * 80 + "\n")
+        f.write("DrDoS DNS Attack Detection - Training Results\n")
+        f.write("=" * 80 + "\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Results saved to: {filename}\n")
+        f.write("=" * 80 + "\n\n")
+
+        f.write("CONFIGURATION\n")
+        f.write("-" * 80 + "\n")
+        for key, value in config.items():
+            f.write(f"{key}: {value}\n")
+        f.write("\n")
+
+        f.write("DATASET INFORMATION\n")
+        f.write("-" * 80 + "\n")
+        for key, value in train_test_info.items():
+            if isinstance(value, (int, float)):
+                if isinstance(value, float):
+                    f.write(f"{key}: {value:.4f}\n")
+                else:
+                    f.write(f"{key}: {value:,}\n")
+            else:
+                f.write(f"{key}: {value}\n")
+        f.write("\n")
+
+        f.write("=" * 80 + "\n")
+        f.write("RESULTS\n")
+        f.write("=" * 80 + "\n\n")
+
+        f.write("Confusion Matrix:\n")
+        cm = metrics["confusion_matrix"]
+        f.write(str(cm) + "\n\n")
+
+        f.write("Classification Report:\n")
+        f.write("-" * 80 + "\n")
+        f.write(f"{'Class':<15} {'Precision':<12} {'Recall':<12} {'F1-Score':<12}\n")
+        f.write("-" * 80 + "\n")
+        for class_name in le_label.classes_:
+            f.write(
+                f"{class_name:<15} {metrics['precision']:<12.4f} {metrics['recall']:<12.4f} {metrics['f1_score']:<12.4f}\n"
+            )
+        f.write("\n")
+
+        f.write("Summary Metrics:\n")
+        f.write("-" * 80 + "\n")
+        f.write(f"Accuracy:  {metrics['accuracy']:.4f}\n")
+        f.write(f"Precision: {metrics['precision']:.4f}\n")
+        f.write(f"Recall:    {metrics['recall']:.4f}\n")
+        f.write(f"F1-Score:  {metrics['f1_score']:.4f}\n")
+        f.write("\n")
+
+        f.write("=" * 80 + "\n")
+        f.write("TOP 20 MOST IMPORTANT FEATURES\n")
+        f.write("=" * 80 + "\n")
+        feature_importance = metrics["feature_importance"].head(20)
+        f.write(f"{'Feature':<30} {'Importance':<15}\n")
+        f.write("-" * 80 + "\n")
+        for _, row in feature_importance.iterrows():
+            f.write(f"{row['feature']:<30} {row['importance']:<15.6f}\n")
+        f.write("\n")
+
+        f.write("=" * 80 + "\n")
+        f.write("Pipeline completed successfully!\n")
+        f.write("=" * 80 + "\n")
+
+    return filename
+
+
+# =============================================================================
+# Comparison
+# =============================================================================
+
+
+def compare_models(results_dict: Dict, label_encoder) -> pd.DataFrame:
+    """Compare multiple models and create a comparison table."""
+    print("\n" + "=" * 80)
+    print("MODEL COMPARISON")
+    print("=" * 80)
+
+    comparison_data = []
+    for model_name, metrics in results_dict.items():
+        comparison_data.append(
+            {
+                "Model": model_name,
+                "Accuracy": f"{metrics['accuracy']:.4f}",
+                "Precision": f"{metrics['precision']:.4f}",
+                "Recall": f"{metrics['recall']:.4f}",
+                "F1-Score": f"{metrics['f1_score']:.4f}",
+                "Training Time (s)": f"{metrics['training_time']:.2f}",
+                "Total Time (s)": f"{metrics['total_time']:.2f}",
+            }
+        )
+
+    comparison_df = pd.DataFrame(comparison_data)
+    comparison_df = comparison_df.sort_values("Accuracy", ascending=False)
+
+    print(comparison_df.to_string(index=False))
+    print("\n" + "=" * 80)
+
+    best_model = comparison_df.iloc[0]["Model"]
+    print(f"🏆 Best Model: {best_model}")
+    print("=" * 80)
+    return comparison_df
+
+
+def save_comparison_to_file(
+    comparison_df: pd.DataFrame,
+    results_dict: Dict,
+    config: Dict,
+    train_test_info: Dict,
+    label_encoder,
+) -> str:
+    """Save comparison results to a text file with auto-incrementing filename."""
+    counter = 1
+    while True:
+        filename = f"comparison_results_{counter}.txt"
+        try:
+            with open(filename, "r"):
+                counter += 1
+        except FileNotFoundError:
+            break
+
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write("=" * 80 + "\n")
+        f.write("DrDoS DNS Attack Detection - Model Comparison Results\n")
+        f.write("=" * 80 + "\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Results saved to: {filename}\n")
+        f.write("=" * 80 + "\n\n")
+
+        f.write("CONFIGURATION\n")
+        f.write("-" * 80 + "\n")
+        for key, value in config.items():
+            f.write(f"{key}: {value}\n")
+
+        f.write("\nDATASET INFORMATION\n")
+        f.write("-" * 80 + "\n")
+        for key, value in train_test_info.items():
+            f.write(f"{key}: {value:,}" if isinstance(value, int) else f"{key}: {value}\n")
+
+        f.write("\n" + "=" * 80 + "\n")
+        f.write("MODEL COMPARISON\n")
+        f.write("=" * 80 + "\n\n")
+        f.write(comparison_df.to_string(index=False))
+        f.write("\n\n")
+
+        best_model = comparison_df.iloc[0]["Model"]
+        f.write("=" * 80 + "\n")
+        f.write(f"🏆 Best Model: {best_model}\n")
+        f.write("=" * 80 + "\n\n")
+
+        f.write("=" * 80 + "\n")
+        f.write("DETAILED RESULTS FOR EACH MODEL\n")
+        f.write("=" * 80 + "\n\n")
+
+        for model_name, metrics in results_dict.items():
+            f.write("-" * 80 + "\n")
+            f.write(f"Model: {model_name}\n")
+            f.write("-" * 80 + "\n\n")
+
+            f.write("⏱️  Timing Information:\n")
+            f.write(f"Training Time: {metrics['training_time']:.2f} seconds\n")
+            f.write(f"Evaluation Time: {metrics['evaluation_time']:.2f} seconds\n")
+            f.write(f"Total Time: {metrics['total_time']:.2f} seconds\n\n")
+
+            f.write("Confusion Matrix:\n")
+            cm = metrics["confusion_matrix"]
+            f.write(str(cm) + "\n\n")
+
+            f.write(f"Accuracy:  {metrics['accuracy']:.4f}\n")
+            f.write(f"Precision: {metrics['precision']:.4f}\n")
+            f.write(f"Recall:    {metrics['recall']:.4f}\n")
+            f.write(f"F1-Score:  {metrics['f1_score']:.4f}\n\n")
+
+            f.write("Top 10 Features:\n")
+            f.write("-" * 80 + "\n")
+            top_features = metrics["feature_importance"].head(10)
+            f.write(f"{'Feature':<30} {'Importance':<15}\n")
+            f.write("-" * 80 + "\n")
+            for _, row in top_features.iterrows():
+                f.write(f"{row['feature']:<30} {row['importance']:<15.6f}\n")
+            f.write("\n")
+
+        f.write("=" * 80 + "\n")
+        f.write("Comparison completed successfully!\n")
+        f.write("=" * 80 + "\n")
+
+    return filename
+
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+
+import pickle
+
+
+def save_model(
+    model,
+    scaler,
+    label_encoder,
+    feature_names: List[str],
+    filepath: str = "drdos_detector_model.pkl",
+) -> None:
+    """Save trained model and preprocessing objects."""
+    print("\n" + "=" * 80)
+    print("Saving model and scaler...")
+
     model_data = {
-        'model': clf,
-        'scaler': scaler,
-        'label_encoder': le
+        "model": model,
+        "scaler": scaler,
+        "label_encoder": label_encoder,
+        "feature_names": feature_names,
     }
-    
-    with open(filename, 'wb') as f:
+
+    with open(filepath, "wb") as f:
         pickle.dump(model_data, f)
-    
-    print("\n   Model saved: {}".format(filename))
+
+    print(f"Model saved as '{filepath}'")
+    print("=" * 80)
+    print("Pipeline completed successfully!")
+    print("=" * 80)
 
 
-def load_model(filename='model.pkl'):
-    """Load trained model"""
-    with open(filename, 'rb') as f:
+def load_model(filepath: str = "drdos_detector_model.pkl") -> Dict:
+    """Load trained model and preprocessing objects."""
+    with open(filepath, "rb") as f:
         model_data = pickle.load(f)
     return model_data
