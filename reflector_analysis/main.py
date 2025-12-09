@@ -8,6 +8,7 @@ Author: DrDoS-Detector Team
 """
 
 import warnings
+from pathlib import Path
 warnings.filterwarnings('ignore')
 
 from utils import data_loading_stage, analysis_stage, reporting_stage
@@ -21,16 +22,18 @@ print("\nAnalyzing domain characteristics from DNS amplification attacks\n")
 # CONFIGURATION
 # ============================================================================
 
-OUTPUT_REPORT = 'dns_reflector_analysis_report.txt'
+BASE_DIR = Path(__file__).resolve().parent.parent
+REPORTS_DIR = BASE_DIR / 'reports'
+OUTPUT_REPORT = REPORTS_DIR / 'dns_reflector_analysis_report.txt'
 
 # ============================================================================
 # DATASET PATHS
 # ============================================================================
 
 DATASET_PATHS = [
-    '../datasets/domains_FirstDay.txt',
-    '../datasets/domains_SecondDay.txt',
-    '../datasets/domains_ThirdDay.txt',
+    BASE_DIR / 'datasets' / 'domains_FirstDay.txt',
+    BASE_DIR / 'datasets' / 'domains_SecondDay.txt',
+    BASE_DIR / 'datasets' / 'domains_ThirdDay.txt',
 ]
 
 
@@ -52,6 +55,7 @@ def main():
     results = analysis_stage(domains)
     
     # Stage 3: Reporting
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     reporting_stage(results, OUTPUT_REPORT)
     
     print("\n" + "="*80)

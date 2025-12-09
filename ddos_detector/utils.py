@@ -9,6 +9,7 @@ import time
 import warnings
 from datetime import datetime
 from typing import Dict, List, Tuple
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -464,13 +465,15 @@ def evaluate_model(
     }
 
 
-def get_next_results_filename(base_name: str = "training_results", extension: str = "txt") -> str:
+def get_next_results_filename(base_name: str = "training_results", extension: str = "txt", output_dir: str | None = None) -> str:
     """Generate next available filename with incremental numbering."""
+    base_path = Path(output_dir) if output_dir else Path.cwd()
+    base_path.mkdir(parents=True, exist_ok=True)
     counter = 1
     while True:
-        filename = f"{base_name}_{counter}.{extension}"
-        if not os.path.exists(filename):
-            return filename
+        filename = base_path / f"{base_name}_{counter}.{extension}"
+        if not filename.exists():
+            return str(filename)
         counter += 1
 
 
@@ -480,10 +483,13 @@ def save_results_to_file(
     train_test_info: Dict,
     le_label,
     filename: str | None = None,
+    output_dir: str | None = None,
 ) -> str:
     """Save training results to a text file."""
     if filename is None:
-        filename = get_next_results_filename()
+        filename = get_next_results_filename(output_dir=output_dir)
+    else:
+        Path(filename).parent.mkdir(parents=True, exist_ok=True)
 
     with open(filename, "w", encoding="utf-8") as f:
         f.write("=" * 80 + "\n")
@@ -597,16 +603,18 @@ def save_comparison_to_file(
     config: Dict,
     train_test_info: Dict,
     label_encoder,
+    output_dir: str | None = None,
 ) -> str:
     """Save comparison results to a text file with auto-incrementing filename."""
+    base_path = Path(output_dir) if output_dir else Path.cwd()
+    base_path.mkdir(parents=True, exist_ok=True)
     counter = 1
     while True:
-        filename = f"comparison_results_{counter}.txt"
-        try:
-            with open(filename, "r"):
-                counter += 1
-        except FileNotFoundError:
+        candidate = base_path / f"comparison_results_{counter}.txt"
+        if not candidate.exists():
+            filename = candidate
             break
+        counter += 1
 
     with open(filename, "w", encoding="utf-8") as f:
         f.write("=" * 80 + "\n")
@@ -673,7 +681,7 @@ def save_comparison_to_file(
         f.write("Comparison completed successfully!\n")
         f.write("=" * 80 + "\n")
 
-    return filename
+    return str(filename)
 
 
 # =============================================================================
@@ -682,6 +690,7 @@ def save_comparison_to_file(
 
 
 import pickle
+from pathlib import Path
 
 
 def save_model(

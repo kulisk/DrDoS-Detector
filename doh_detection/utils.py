@@ -65,6 +65,34 @@ def evaluation_stage(results, y_test, label_encoder):
     return _evaluate_models(results, y_test, label_encoder)
 
 
+def save_report(results, y_test, le_label, output_path):
+    """Save a text report with per-model metrics."""
+    lines = []
+    lines.append("="*80)
+    lines.append("MALICIOUS DoH DETECTION - REPORT")
+    lines.append("="*80)
+    lines.append("")
+
+    for name, result in results.items():
+        y_pred = result['predictions']
+        acc = accuracy_score(y_test, y_pred)
+        lines.append("="*80)
+        lines.append(f"Model: {name}")
+        lines.append("="*80)
+        lines.append(f"Train Accuracy: {result['accuracy']:.4f}")
+        lines.append(f"Test Accuracy: {acc:.4f}")
+        lines.append("")
+        lines.append("Confusion Matrix:")
+        lines.append(str(confusion_matrix(y_test, y_pred)))
+        lines.append("")
+        lines.append("Classification Report:")
+        lines.append(classification_report(y_test, y_pred, target_names=le_label.classes_))
+        lines.append("")
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write("\n".join(lines))
+
+
 # ============================================================================
 # DATA LOADING HELPERS
 # ============================================================================
@@ -80,24 +108,24 @@ def _load_doh_data(doh_file, nondoh_file, sample_limit):
         df_doh = pd.read_csv(doh_file, nrows=sample_limit)
         df_doh['Label'] = 'DoH'
         data.append(df_doh)
-        print("  [OK] DoH samples: {len(df_doh):,}")
+        print(f"  [OK] DoH samples: {len(df_doh):,}")
     else:
-        print("  [ERROR] File not found: {doh_file}")
+        print(f"  [ERROR] File not found: {doh_file}")
     
     # Load non-DoH traffic
     if os.path.exists(nondoh_file):
         df_nondoh = pd.read_csv(nondoh_file, nrows=sample_limit)
         df_nondoh['Label'] = 'non-DoH'
         data.append(df_nondoh)
-        print("  [OK] non-DoH samples: {len(df_nondoh):,}")
+        print(f"  [OK] non-DoH samples: {len(df_nondoh):,}")
     else:
-        print("  [ERROR] File not found: {nondoh_file}")
+        print(f"  [ERROR] File not found: {nondoh_file}")
     
     if not data:
         return None
     
     df_combined = pd.concat(data, ignore_index=True)
-    print("\n  Total samples: {len(df_combined):,}")
+    print(f"\n  Total samples: {len(df_combined):,}")
     
     return df_combined
 
@@ -116,7 +144,7 @@ def _preprocess_data(df):
     
     # Handle missing values
     X = X.fillna(0)
-    print("  Null values: {X.isnull().sum().sum()}")
+    print(f"  Null values: {X.isnull().sum().sum()}")
     
     # Encode categorical columns
     for col in X.columns:
@@ -128,8 +156,8 @@ def _preprocess_data(df):
     le_label = LabelEncoder()
     y_encoded = le_label.fit_transform(y)
     
-    print("  Features: {X.shape[1]}")
-    print("  Classes: {le_label.classes_}")
+    print(f"  Features: {X.shape[1]}")
+    print(f"  Classes: {le_label.classes_}")
     
     return X, y_encoded, le_label
 
@@ -140,7 +168,7 @@ def _split_data(X, y, test_size, random_state):
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=random_state, stratify=y
     )
-    print("  Train: {len(X_train):,}, Test: {len(X_test):,}")
+    print(f"  Train: {len(X_train):,}, Test: {len(X_test):,}")
     return X_train, X_test, y_train, y_test
 
 
@@ -172,7 +200,7 @@ def _train_models(X_train_scaled, X_test_scaled, y_train, model_params, random_s
     results = {}
     
     for name, clf in models.items():
-        print("\n  Training {name}...")
+        print(f"\n  Training {name}...")
         clf.fit(X_train_scaled, y_train)
         
         # Predict
@@ -187,7 +215,7 @@ def _train_models(X_train_scaled, X_test_scaled, y_train, model_params, random_s
             'predictions': y_pred
         }
         
-        print("    Train Accuracy: {accuracy:.4f}")
+        print(f"    Train Accuracy: {accuracy:.4f}")
     
     return results
 
@@ -204,14 +232,14 @@ def _evaluate_models(results, y_test, le_label):
     best_accuracy = 0
     
     for name, result in results.items():
-        print("\n{'='*80}")
-        print("{name}")
-        print("="*80)
+        print("\n" + "=" * 80)
+        print(name)
+        print("=" * 80)
         
         y_pred = result['predictions']
         accuracy = accuracy_score(y_test, y_pred)
         
-        print("\nTest Accuracy: {accuracy:.4f}")
+        print(f"\nTest Accuracy: {accuracy:.4f}")
         
         print("\nConfusion Matrix:")
         cm = confusion_matrix(y_test, y_pred)

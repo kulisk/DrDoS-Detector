@@ -8,9 +8,16 @@ Author: DrDoS-Detector Team
 """
 
 import warnings
+from pathlib import Path
 warnings.filterwarnings('ignore')
 
-from utils import data_loading_stage, preprocessing_stage, training_stage, evaluation_stage
+from utils import (
+    data_loading_stage,
+    preprocessing_stage,
+    training_stage,
+    evaluation_stage,
+    save_report,
+)
 
 print("="*80)
 print("MALICIOUS DNS-over-HTTPS (DoH) DETECTION")
@@ -25,13 +32,15 @@ print()
 RANDOM_STATE = 42
 TEST_SIZE = 0.20
 SAMPLE_LIMIT = 50000
+BASE_DIR = Path(__file__).resolve().parent.parent
+REPORTS_DIR = BASE_DIR / "reports"
 
 # ============================================================================
 # DATASET PATHS
 # ============================================================================
 
-STAGE1_DOH = '../datasets/l1-doh.csv'
-STAGE1_NONDOH = '../datasets/l1-nondoh.csv'
+STAGE1_DOH = BASE_DIR / 'datasets' / 'l1-doh.csv'
+STAGE1_NONDOH = BASE_DIR / 'datasets' / 'l1-nondoh.csv'
 
 # ============================================================================
 # MODEL PARAMETERS
@@ -72,6 +81,11 @@ def main():
     
     # Stage 4: Evaluation
     best_model_name, best_accuracy = evaluation_stage(results, y_test, le_label)
+
+    # Save report
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    report_path = REPORTS_DIR / 'doh_detection_report.txt'
+    save_report(results, y_test, le_label, report_path)
     
     # Summary
     print("\n" + "="*80)
@@ -89,6 +103,7 @@ def main():
     print("  - Malware using DoH for C&C")
     
     print("\n" + "="*80)
+    print(f"Report saved: {report_path}")
 
 
 if __name__ == "__main__":

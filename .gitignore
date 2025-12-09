@@ -3,9 +3,9 @@
 *.png
 *.joblib
 *.txt
+!requirements.txt
 
-#(the main dataset)
-DrDoS_DNS.csv 
+
 *.csv
 
 *.pkl

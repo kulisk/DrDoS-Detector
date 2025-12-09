@@ -6,6 +6,7 @@ Uses the consolidated utilities in utils.py for all processing steps.
 import time
 import warnings
 import numpy as np
+from pathlib import Path
 
 from utils import (
     apply_smote_to_benign,
@@ -41,8 +42,10 @@ ENABLE_MODELS = {
 
 # Configuration
 RANDOM_STATE = 42
-CSV_PATH = "datasets/DrDoS_DNS.csv"
-MODEL_PATH = "drdos_detector_model.pkl"
+BASE_DIR = Path(__file__).resolve().parent.parent
+REPORTS_DIR = BASE_DIR / "reports"
+CSV_PATH = str(BASE_DIR / "datasets" / "DrDoS_DNS.csv")
+MODEL_PATH = str(BASE_DIR / "drdos_detector_model.pkl")
 TEST_SIZE = 0.20  # Test set ratio (configurable)
 
 # SMOTE configuration
@@ -96,6 +99,8 @@ def main():
     print(f"Configuration: TEST_SIZE={TEST_SIZE}, SMOTE_RATIO={SMOTE_TARGET_RATIO}x")
     print(f"Enabled Models: {', '.join(enabled_models)}")
     print("=" * 80)
+
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
     df = load_dataset(CSV_PATH)
     X, y, _ = clean_data(df)
@@ -214,7 +219,7 @@ def main():
         }
 
         comparison_file = save_comparison_to_file(
-            comparison_df, results_dict, config, train_test_info, le_label
+            comparison_df, results_dict, config, train_test_info, le_label, output_dir=REPORTS_DIR
         )
         print(f"\nComparison results saved to: {comparison_file}")
 
@@ -240,7 +245,7 @@ def main():
         }
         config.update(MODEL_PARAMS[model_name])
 
-        results_file = save_results_to_file(metrics, config, train_test_info, le_label)
+        results_file = save_results_to_file(metrics, config, train_test_info, le_label, output_dir=str(REPORTS_DIR))
         print(f"\nResults saved to: {results_file}")
 
     print("\n" + "=" * 80)
