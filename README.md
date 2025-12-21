@@ -15,7 +15,7 @@ DrDoS-Detector is a modular DNS security project that implements machine learnin
 | **DDoS Detector** | DNS amplification DDoS detection | 99.99% | CICDDoS2019 |
 | **Exfiltration Detection** | DNS tunneling & data exfiltration | 96.29% | CIC-Bell-DNS-EXF-2021 |
 | **DoH Detection** | Malicious DNS-over-HTTPS traffic | 99.94% | CIRA-CIC-DoHBrw-2020 |
-| **Reflector Analysis** | Statistical domain analysis | N/A | CIC-Bell-DNS 2021 |
+| **Domain Threat Classification** | 4-class domain classification | N/A | CIC-Bell-DNS 2021 |
 
 ---
 
@@ -63,8 +63,8 @@ python main.py
 cd doh_detection
 python main.py
 
-# Reflector Analysis
-cd reflector_analysis
+# Domain Threat Classification
+cd domain_threat_classification
 python main.py
 ```
 
@@ -86,10 +86,11 @@ DrDoS-Detector/
 │   ├── cira-cic-dohbrw-2020/
 │   │   ├── l1-doh.csv
 │   │   └── l1-nondoh.csv
-│   ├── cic-bell-dns-2021/
-│   │   ├── domains_FirstDay.txt
-│   │   ├── domains_SecondDay.txt
-│   │   └── domains_ThirdDay.txt
+│   ├── CIC-Bell-DNS 2021/
+│   │   ├── CSV_benign.csv
+│   │   ├── CSV_malware.csv
+│   │   ├── CSV_phishing.csv
+│   │   └── CSV_spam.csv
 │   └── cic-bell-dns-exf-2021/
 │       ├── benign/
 │       │   ├── stateless_features-benign_1.pcap.csv
@@ -112,7 +113,7 @@ DrDoS-Detector/
 │   ├── main.py                       # Main execution (config + pipeline)
 │   └── utils.py                      # Helper functions (organized by stages)
 │
-├── reflector_analysis/               # Module 4: Domain Analysis
+├── domain_threat_classification/     # Module 4: Domain Threat Classification
 │   ├── main.py                       # Main execution (config + pipeline)
 │   └── utils.py                      # Helper functions (organized by stages)
 │
@@ -265,37 +266,31 @@ MODEL_PARAMS = {
 
 ---
 
-### 4️⃣ Reflector Analysis (`reflector_analysis/`)
+### 4️⃣ Domain Threat Classification (`domain_threat_classification/`)
 
-Statistical analysis of DNS domains used in amplification attacks.
+Multi-class ML classification of domains into 4 categories:
+**Benign / Malware / Phishing / Spam**.
 
 **Features:**
-- TLD (Top-Level Domain) distribution analysis
-- Domain length and uniqueness metrics
-- Pattern identification in abused domains
-- Report generation
+- Uses the CIC-Bell-DNS 2021 CSVs (no TXT lists)
+- Combines lexical domain features + numeric features already present in the CSVs
+- Multi-model training (Logistic Regression, Random Forest, Decision Tree)
 
 **Configuration (main.py):**
 ```python
-OUTPUT_REPORT = 'dns_reflector_analysis_report.txt'
-
-DATASET_PATHS = [
-    '../datasets/cic-bell-dns-2021/domains_FirstDay.txt',
-    '../datasets/cic-bell-dns-2021/domains_SecondDay.txt',
-    '../datasets/cic-bell-dns-2021/domains_ThirdDay.txt',
-]
+LABELED_DOMAIN_CSVS = {
+    'Benign': '../datasets/CIC-Bell-DNS 2021/CSV_benign.csv',
+    'Malware': '../datasets/CIC-Bell-DNS 2021/CSV_malware.csv',
+    'Phishing': '../datasets/CIC-Bell-DNS 2021/CSV_phishing.csv',
+    'Spam': '../datasets/CIC-Bell-DNS 2021/CSV_spam.csv',
+}
 ```
 
-**Results:**
-- Analyzed: 33,313 domains
-- Top TLD: .com (52.93%)
-- Average domain length: 12.49 characters
-- Dataset: CIC-Bell-DNS 2021
-
 **Pipeline Stages:**
-1. `data_loading_stage()`: Load domain lists
-2. `analysis_stage()`: Calculate statistics and TLD distribution
-3. `reporting_stage()`: Generate and save report
+1. `data_loading_stage()`: Load labeled samples from the 4 CSVs
+2. `preprocessing_stage()`: Build feature matrix → split
+3. `training_stage()`: Train models
+4. `evaluation_stage()`: Evaluate and select best
 
 ---
 
@@ -381,7 +376,7 @@ python run_all.py
 | DDoS Detector | 99.99% | 1.00 | 1.00 | 1.00 | 1.26M samples |
 | Exfiltration Detection | 96.29% | 0.97 | 0.96 | 0.96 | 685K samples |
 | DoH Detection | 99.94% | 1.00 | 1.00 | 1.00 | 100K samples |
-| Reflector Analysis | N/A | N/A | N/A | N/A | 33K domains |
+| Domain Threat Classification | See report | See report | See report | See report | ≤200K samples (capped at 50K/class) |
 
 ---
 
@@ -466,7 +461,10 @@ DrDoS-Detector/
 │   ├── cicddos2019/DrDoS_DNS.csv
 │   ├── cira-cic-dohbrw-2020/l1-doh.csv
 │   ├── cira-cic-dohbrw-2020/l1-nondoh.csv
-│   ├── cic-bell-dns-2021/domains_FirstDay.txt
+│   ├── CIC-Bell-DNS 2021/CSV_benign.csv
+│   ├── CIC-Bell-DNS 2021/CSV_malware.csv
+│   ├── CIC-Bell-DNS 2021/CSV_phishing.csv
+│   ├── CIC-Bell-DNS 2021/CSV_spam.csv
 │   └── cic-bell-dns-exf-2021/...
 ├── ddos_detector/
 ├── exfiltration_detection/
@@ -484,13 +482,13 @@ Place datasets in the `datasets/` folder:
 | `cira-cic-dohbrw-2020/l1-nondoh.csv` | ~200MB | CIRA-CIC-DoHBrw-2020 | Non-DoH traffic samples |
 | `cic-bell-dns-exf-2021/benign/stateless_features-benign_*.csv` | ~100MB | CIC-Bell-DNS-EXF-2021 | Benign DNS samples |
 | `cic-bell-dns-exf-2021/benign/stateful_features-benign_*.csv` | ~50MB | CIC-Bell-DNS-EXF-2021 | Benign DNS samples |
-| `cic-bell-dns-2021/domains_*.txt` | ~1MB | CIC-Bell-DNS 2021 | Domain lists |
+| `CIC-Bell-DNS 2021/CSV_*.csv` | varies | CIC-Bell-DNS 2021 | Domain threat classification (Benign/Malware/Phishing/Spam) |
 
 ### Additional Dataset Folders
 
 Some modules also require full dataset folders:
 - `datasets/cic-bell-dns-exf-2021/CIC-Bell-DNS-EXF-2021 dataset/` (exfiltration attacks)
-- `CIC-Bell-DNS 2021 dataset/` (domain analysis)
+- `datasets/CIC-Bell-DNS 2021/` (domain threat classification CSVs)
 - `CIRA-CIC-DoHBrw-2020/` (DoH detection)
 
 ---

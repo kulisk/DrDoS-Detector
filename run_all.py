@@ -8,7 +8,7 @@ Modules:
 1. DrDoS Amplification Detection
 2. DNS Exfiltration Detection
 3. Malicious DoH Detection
-4. DNS Reflector Analysis
+4. Domain Threat Classification
 
 Author: DrDoS-Detector Team
 """
@@ -18,9 +18,9 @@ import sys
 import time
 from datetime import datetime
 
-# Get Python executable path - force Python 3
-PYTHON_EXE = 'py' if sys.platform == 'win32' else 'python3'
-PYTHON_ARGS = ['-3'] if sys.platform == 'win32' else []
+# Use the current interpreter (works with venvs and avoids relying on the Windows py launcher)
+PYTHON_EXE = sys.executable
+PYTHON_ARGS = []
 
 # Module paths
 MODULES = [
@@ -40,9 +40,9 @@ MODULES = [
         'description': 'Detecting malicious DNS-over-HTTPS traffic'
     },
     {
-        'name': 'DNS Reflector Analysis',
-        'path': 'reflector_analysis/main.py',
-        'description': 'Statistical analysis of attacked domains'
+        'name': 'Domain Threat Classification',
+        'path': 'domain_threat_classification/main.py',
+        'description': '4-class domain threat classification (Benign/Malware/Phishing/Spam)'
     }
 ]
 
