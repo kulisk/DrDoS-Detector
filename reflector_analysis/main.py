@@ -34,6 +34,10 @@ DATASET_PATHS = [
     BASE_DIR / 'datasets' / 'cic-bell-dns-2021' / 'domains_FirstDay.txt',
     BASE_DIR / 'datasets' / 'cic-bell-dns-2021' / 'domains_SecondDay.txt',
     BASE_DIR / 'datasets' / 'cic-bell-dns-2021' / 'domains_ThirdDay.txt',
+    BASE_DIR / 'datasets' / 'CIC-Bell-DNS 2021' / 'CSV_benign.csv',
+    BASE_DIR / 'datasets' / 'CIC-Bell-DNS 2021' / 'CSV_malware.csv',
+    BASE_DIR / 'datasets' / 'CIC-Bell-DNS 2021' / 'CSV_phishing.csv',
+    BASE_DIR / 'datasets' / 'CIC-Bell-DNS 2021' / 'CSV_spam.csv',
 ]
 
 
