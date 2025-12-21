@@ -80,15 +80,25 @@ python run_all.py
 
 ```
 DrDoS-Detector/
-├── datasets/                          # All datasets (CSV & TXT files)
-│   ├── DrDoS_DNS.csv                 # DDoS detection dataset
-│   ├── l1-doh.csv                    # DoH traffic dataset
-│   ├── l1-nondoh.csv                 # Non-DoH traffic dataset
-│   ├── stateless_features-benign_*.csv  # Exfiltration benign samples
-│   ├── stateful_features-benign_*.csv   # Exfiltration benign samples
-│   ├── domains_FirstDay.txt          # Domain analysis data
-│   ├── domains_SecondDay.txt         # Domain analysis data
-│   └── domains_ThirdDay.txt          # Domain analysis data
+├── datasets/                          # All datasets (organized by source)
+│   ├── cicddos2019/
+│   │   └── DrDoS_DNS.csv
+│   ├── cira-cic-dohbrw-2020/
+│   │   ├── l1-doh.csv
+│   │   └── l1-nondoh.csv
+│   ├── cic-bell-dns-2021/
+│   │   ├── domains_FirstDay.txt
+│   │   ├── domains_SecondDay.txt
+│   │   └── domains_ThirdDay.txt
+│   └── cic-bell-dns-exf-2021/
+│       ├── benign/
+│       │   ├── stateless_features-benign_1.pcap.csv
+│       │   ├── stateless_features-benign_2.pcap.csv
+│       │   ├── stateful_features-benign_1.pcap.csv
+│       │   └── stateful_features-benign_2.pcap.csv
+│       └── CIC-Bell-DNS-EXF-2021 dataset/
+│           ├── Attack_heavy_Benign/
+│           └── Attack_Light_Benign/
 │
 ├── ddos_detector/                     # Module 1: DDoS Amplification Detection
 │   ├── main.py                       # Main execution (config + pipeline)
@@ -137,7 +147,7 @@ Detects DNS amplification DDoS attacks using multiple ML classifiers.
 **Configuration (main.py):**
 ```python
 RANDOM_STATE = 42
-CSV_PATH = '../datasets/DrDoS_DNS.csv'
+CSV_PATH = '../datasets/cicddos2019/DrDoS_DNS.csv'
 TEST_SIZE = 0.20
 SMOTE_TARGET_RATIO = 10
 
@@ -178,18 +188,18 @@ RANDOM_STATE = 42
 TEST_SIZE = 0.20
 
 STATELESS_FILES = [
-    '../datasets/stateless_features-benign_1.pcap.csv',
-    '../datasets/stateless_features-benign_2.pcap.csv',
+    '../datasets/cic-bell-dns-exf-2021/benign/stateless_features-benign_1.pcap.csv',
+    '../datasets/cic-bell-dns-exf-2021/benign/stateless_features-benign_2.pcap.csv',
 ]
 
 STATEFUL_FILES = [
-    '../datasets/stateful_features-benign_1.pcap.csv',
-    '../datasets/stateful_features-benign_2.pcap.csv',
+    '../datasets/cic-bell-dns-exf-2021/benign/stateful_features-benign_1.pcap.csv',
+    '../datasets/cic-bell-dns-exf-2021/benign/stateful_features-benign_2.pcap.csv',
 ]
 
 ATTACK_FOLDERS = [
-    '../CIC-Bell-DNS-EXF-2021 dataset/Attack_heavy_Benign/Attacks',
-    '../CIC-Bell-DNS-EXF-2021 dataset/Attack_Light_Benign/Attacks',
+    '../datasets/cic-bell-dns-exf-2021/CIC-Bell-DNS-EXF-2021 dataset/Attack_heavy_Benign/Attacks',
+    '../datasets/cic-bell-dns-exf-2021/CIC-Bell-DNS-EXF-2021 dataset/Attack_Light_Benign/Attacks',
 ]
 ```
 
@@ -223,6 +233,10 @@ SAMPLE_LIMIT = 50000
 
 STAGE1_DOH = '../datasets/l1-doh.csv'
 STAGE1_NONDOH = '../datasets/l1-nondoh.csv'
+
+# New layout (recommended)
+# STAGE1_DOH = '../datasets/cira-cic-dohbrw-2020/l1-doh.csv'
+# STAGE1_NONDOH = '../datasets/cira-cic-dohbrw-2020/l1-nondoh.csv'
 
 MODEL_PARAMS = {
     'Random Forest': {
@@ -266,9 +280,9 @@ Statistical analysis of DNS domains used in amplification attacks.
 OUTPUT_REPORT = 'dns_reflector_analysis_report.txt'
 
 DATASET_PATHS = [
-    '../datasets/domains_FirstDay.txt',
-    '../datasets/domains_SecondDay.txt',
-    '../datasets/domains_ThirdDay.txt',
+    '../datasets/cic-bell-dns-2021/domains_FirstDay.txt',
+    '../datasets/cic-bell-dns-2021/domains_SecondDay.txt',
+    '../datasets/cic-bell-dns-2021/domains_ThirdDay.txt',
 ]
 ```
 
@@ -449,9 +463,11 @@ After downloading, extract the `datasets/` folder to the project root:
 ```
 DrDoS-Detector/
 ├── datasets/          # <- Extract here
-│   ├── DrDoS_DNS.csv
-│   ├── l1-doh.csv
-│   └── ...
+│   ├── cicddos2019/DrDoS_DNS.csv
+│   ├── cira-cic-dohbrw-2020/l1-doh.csv
+│   ├── cira-cic-dohbrw-2020/l1-nondoh.csv
+│   ├── cic-bell-dns-2021/domains_FirstDay.txt
+│   └── cic-bell-dns-exf-2021/...
 ├── ddos_detector/
 ├── exfiltration_detection/
 └── ...
@@ -463,17 +479,17 @@ Place datasets in the `datasets/` folder:
 
 | File | Size | Source | Purpose |
 |------|------|--------|---------|
-| `DrDoS_DNS.csv` | ~500MB | CICDDoS2019 | DDoS detection training |
-| `l1-doh.csv` | ~200MB | CIRA-CIC-DoHBrw-2020 | DoH traffic samples |
-| `l1-nondoh.csv` | ~200MB | CIRA-CIC-DoHBrw-2020 | Non-DoH traffic samples |
-| `stateless_features-benign_*.csv` | ~100MB | CIC-Bell-DNS-EXF-2021 | Benign DNS samples |
-| `stateful_features-benign_*.csv` | ~50MB | CIC-Bell-DNS-EXF-2021 | Benign DNS samples |
-| `domains_*.txt` | ~1MB | CIC-Bell-DNS 2021 | Domain lists |
+| `cicddos2019/DrDoS_DNS.csv` | ~500MB | CICDDoS2019 | DDoS detection training |
+| `cira-cic-dohbrw-2020/l1-doh.csv` | ~200MB | CIRA-CIC-DoHBrw-2020 | DoH traffic samples |
+| `cira-cic-dohbrw-2020/l1-nondoh.csv` | ~200MB | CIRA-CIC-DoHBrw-2020 | Non-DoH traffic samples |
+| `cic-bell-dns-exf-2021/benign/stateless_features-benign_*.csv` | ~100MB | CIC-Bell-DNS-EXF-2021 | Benign DNS samples |
+| `cic-bell-dns-exf-2021/benign/stateful_features-benign_*.csv` | ~50MB | CIC-Bell-DNS-EXF-2021 | Benign DNS samples |
+| `cic-bell-dns-2021/domains_*.txt` | ~1MB | CIC-Bell-DNS 2021 | Domain lists |
 
 ### Additional Dataset Folders
 
 Some modules also require full dataset folders:
-- `CIC-Bell-DNS-EXF-2021 dataset/` (exfiltration attacks)
+- `datasets/cic-bell-dns-exf-2021/CIC-Bell-DNS-EXF-2021 dataset/` (exfiltration attacks)
 - `CIC-Bell-DNS 2021 dataset/` (domain analysis)
 - `CIRA-CIC-DoHBrw-2020/` (DoH detection)
 

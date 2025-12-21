@@ -44,7 +44,7 @@ ENABLE_MODELS = {
 RANDOM_STATE = 42
 BASE_DIR = Path(__file__).resolve().parent.parent
 REPORTS_DIR = BASE_DIR / "reports"
-CSV_PATH = str(BASE_DIR / "datasets" / "DrDoS_DNS.csv")
+CSV_PATH = str(BASE_DIR / "datasets" / "cicddos2019" / "DrDoS_DNS.csv")
 MODEL_PATH = str(BASE_DIR / "drdos_detector_model.pkl")
 TEST_SIZE = 0.20  # Test set ratio (configurable)
 

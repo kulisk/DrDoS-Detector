@@ -33,24 +33,26 @@ RANDOM_STATE = 42
 TEST_SIZE = 0.20
 BASE_DIR = Path(__file__).resolve().parent.parent
 REPORTS_DIR = BASE_DIR / "reports"
+DATASETS_DIR = BASE_DIR / "datasets"
+EXF_DATASETS_DIR = DATASETS_DIR / "cic-bell-dns-exf-2021"
 
 # ============================================================================
 # DATASET PATHS
 # ============================================================================
 
 STATELESS_FILES = [
-    BASE_DIR / 'datasets' / 'stateless_features-benign_1.pcap.csv',
-    BASE_DIR / 'datasets' / 'stateless_features-benign_2.pcap.csv',
+    EXF_DATASETS_DIR / 'benign' / 'stateless_features-benign_1.pcap.csv',
+    EXF_DATASETS_DIR / 'benign' / 'stateless_features-benign_2.pcap.csv',
 ]
 
 STATEFUL_FILES = [
-    BASE_DIR / 'datasets' / 'stateful_features-benign_1.pcap.csv',
-    BASE_DIR / 'datasets' / 'stateful_features-benign_2.pcap.csv',
+    EXF_DATASETS_DIR / 'benign' / 'stateful_features-benign_1.pcap.csv',
+    EXF_DATASETS_DIR / 'benign' / 'stateful_features-benign_2.pcap.csv',
 ]
 
 ATTACK_FOLDERS = [
-    BASE_DIR / 'CIC-Bell-DNS-EXF-2021 dataset' / 'Attack_heavy_Benign' / 'Attacks',
-    BASE_DIR / 'CIC-Bell-DNS-EXF-2021 dataset' / 'Attack_Light_Benign' / 'Attacks',
+    EXF_DATASETS_DIR / 'CIC-Bell-DNS-EXF-2021 dataset' / 'Attack_heavy_Benign' / 'Attacks',
+    EXF_DATASETS_DIR / 'CIC-Bell-DNS-EXF-2021 dataset' / 'Attack_Light_Benign' / 'Attacks',
 ]
 
 # ============================================================================

@@ -31,9 +31,9 @@ OUTPUT_REPORT = REPORTS_DIR / 'dns_reflector_analysis_report.txt'
 # ============================================================================
 
 DATASET_PATHS = [
-    BASE_DIR / 'datasets' / 'domains_FirstDay.txt',
-    BASE_DIR / 'datasets' / 'domains_SecondDay.txt',
-    BASE_DIR / 'datasets' / 'domains_ThirdDay.txt',
+    BASE_DIR / 'datasets' / 'cic-bell-dns-2021' / 'domains_FirstDay.txt',
+    BASE_DIR / 'datasets' / 'cic-bell-dns-2021' / 'domains_SecondDay.txt',
+    BASE_DIR / 'datasets' / 'cic-bell-dns-2021' / 'domains_ThirdDay.txt',
 ]
 
 

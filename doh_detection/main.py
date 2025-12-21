@@ -39,8 +39,8 @@ REPORTS_DIR = BASE_DIR / "reports"
 # DATASET PATHS
 # ============================================================================
 
-STAGE1_DOH = BASE_DIR / 'datasets' / 'l1-doh.csv'
-STAGE1_NONDOH = BASE_DIR / 'datasets' / 'l1-nondoh.csv'
+STAGE1_DOH = BASE_DIR / 'datasets' / 'cira-cic-dohbrw-2020' / 'l1-doh.csv'
+STAGE1_NONDOH = BASE_DIR / 'datasets' / 'cira-cic-dohbrw-2020' / 'l1-nondoh.csv'
 
 # ============================================================================
 # MODEL PARAMETERS
