@@ -10,6 +10,7 @@ Author: DrDoS-Detector Team
 import pandas as pd
 import numpy as np
 import os
+import pickle
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
@@ -91,6 +92,25 @@ def save_report(results, y_test, le_label, output_path):
 
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write("\n".join(lines))
+
+
+def save_model(model, scaler, label_encoder, feature_names, filepath: str, model_name: str | None = None) -> None:
+    """Persist best model and preprocessing objects to a pickle file."""
+    payload = {
+        'model': model,
+        'scaler': scaler,
+        'label_encoder': label_encoder,
+        'feature_names': feature_names,
+        'model_name': model_name,
+    }
+    with open(filepath, 'wb') as f:
+        pickle.dump(payload, f)
+
+
+def load_model(filepath: str) -> dict:
+    """Load a persisted model payload."""
+    with open(filepath, 'rb') as f:
+        return pickle.load(f)
 
 
 # ============================================================================

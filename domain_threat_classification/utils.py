@@ -13,6 +13,7 @@ import ast
 import csv
 import math
 import os
+import pickle
 import re
 from collections import Counter
 from typing import Iterable
@@ -69,9 +70,9 @@ def preprocessing_stage(df, test_size, random_state):
 
 def training_stage(X_train, X_test, y_train, model_params, random_state):
     """Scale features and train models."""
-    X_train_scaled, X_test_scaled, scaler = _scale_features(X_train, X_test)
+    X_train_scaled, X_test_scaled, preprocessor = _scale_features(X_train, X_test)
     results = _train_models(X_train_scaled, X_test_scaled, y_train, model_params)
-    return results, scaler, X_test_scaled
+    return results, preprocessor, X_test_scaled
 
 
 def evaluation_stage(results, y_test, label_encoder):
@@ -105,6 +106,32 @@ def save_report(results, y_test, le_label, output_path):
 
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write("\n".join(lines))
+
+
+def save_model(
+    model,
+    preprocessor,
+    label_encoder,
+    feature_names,
+    filepath: str,
+    model_name: str | None = None,
+) -> None:
+    """Persist best model and preprocessing objects to a pickle file."""
+    payload = {
+        'model': model,
+        'preprocessor': preprocessor,
+        'label_encoder': label_encoder,
+        'feature_names': feature_names,
+        'model_name': model_name,
+    }
+    with open(filepath, 'wb') as f:
+        pickle.dump(payload, f)
+
+
+def load_model(filepath: str) -> dict:
+    """Load a persisted model payload."""
+    with open(filepath, 'rb') as f:
+        return pickle.load(f)
 
 
 # ============================================================================
@@ -419,7 +446,11 @@ def _scale_features(X_train, X_test):
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train_imp)
     X_test_scaled = scaler.transform(X_test_imp)
-    return X_train_scaled, X_test_scaled, scaler
+    preprocessor = {
+        'imputer': imputer,
+        'scaler': scaler,
+    }
+    return X_train_scaled, X_test_scaled, preprocessor
 
 
 # ============================================================================

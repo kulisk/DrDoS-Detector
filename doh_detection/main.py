@@ -17,6 +17,7 @@ from utils import (
     training_stage,
     evaluation_stage,
     save_report,
+    save_model,
 )
 
 print("="*80)
@@ -34,6 +35,8 @@ TEST_SIZE = 0.20
 SAMPLE_LIMIT = 50000
 BASE_DIR = Path(__file__).resolve().parent.parent
 REPORTS_DIR = BASE_DIR / "reports"
+MODELS_DIR = BASE_DIR / "models"
+MODEL_PATH = MODELS_DIR / "doh_detection_best_model.pkl"
 
 # ============================================================================
 # DATASET PATHS
@@ -84,8 +87,20 @@ def main():
 
     # Save report
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REPORTS_DIR / 'doh_detection_report.txt'
     save_report(results, y_test, le_label, report_path)
+
+    # Persist best model
+    best_model = results[best_model_name]['model']
+    save_model(
+        model=best_model,
+        scaler=scaler,
+        label_encoder=le_label,
+        feature_names=X_train.columns.tolist(),
+        filepath=str(MODEL_PATH),
+        model_name=best_model_name,
+    )
     
     # Summary
     print("\n" + "="*80)
@@ -104,6 +119,7 @@ def main():
     
     print("\n" + "="*80)
     print(f"Report saved: {report_path}")
+    print(f"Best model saved: {MODEL_PATH}")
 
 
 if __name__ == "__main__":

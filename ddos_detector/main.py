@@ -44,8 +44,9 @@ ENABLE_MODELS = {
 RANDOM_STATE = 42
 BASE_DIR = Path(__file__).resolve().parent.parent
 REPORTS_DIR = BASE_DIR / "reports"
+MODELS_DIR = BASE_DIR / "models"
 CSV_PATH = str(BASE_DIR / "datasets" / "cicddos2019" / "DrDoS_DNS.csv")
-MODEL_PATH = str(BASE_DIR / "drdos_detector_model.pkl")
+MODEL_PATH = str(MODELS_DIR / "ddos_detector_best_model.pkl")
 TEST_SIZE = 0.20  # Test set ratio (configurable)
 
 # SMOTE configuration
@@ -101,6 +102,7 @@ def main():
     print("=" * 80)
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
     df = load_dataset(CSV_PATH)
     X, y, _ = clean_data(df)
@@ -225,9 +227,8 @@ def main():
 
         best_model_name = comparison_df.iloc[0]["Model"]
         best_model = models_dict[best_model_name]
-        model_path = f"best_model_{best_model_name.replace(' ', '_').lower()}.pkl"
-        save_model(best_model, scaler, le_label, X.columns.tolist(), model_path)
-        print(f"Best model ({best_model_name}) saved as: {model_path}")
+        save_model(best_model, scaler, le_label, X.columns.tolist(), MODEL_PATH)
+        print(f"Best model ({best_model_name}) saved as: {MODEL_PATH}")
 
     else:
         model_name = enabled_models[0]

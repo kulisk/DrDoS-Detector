@@ -698,7 +698,7 @@ def save_model(
     scaler,
     label_encoder,
     feature_names: List[str],
-    filepath: str = "drdos_detector_model.pkl",
+    filepath: str = "models/ddos_detector_best_model.pkl",
 ) -> None:
     """Save trained model and preprocessing objects."""
     print("\n" + "=" * 80)
@@ -720,7 +720,7 @@ def save_model(
     print("=" * 80)
 
 
-def load_model(filepath: str = "drdos_detector_model.pkl") -> Dict:
+def load_model(filepath: str = "models/ddos_detector_best_model.pkl") -> Dict:
     """Load trained model and preprocessing objects."""
     with open(filepath, "rb") as f:
         model_data = pickle.load(f)
